@@ -1,0 +1,1 @@
+export { maybeSpawnPickupOnEnemyDeath, updatePickups } from "./pickupSystem.js";

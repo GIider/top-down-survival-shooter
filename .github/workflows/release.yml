@@ -1,0 +1,48 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-html
+          path: dist/index.html
+          retention-days: 90
+
+      - name: Create or update latest release
+        run: |
+          gh release delete latest --yes 2>/dev/null || true
+          gh release create latest dist/index.html \
+            --title "Latest Build (run ${{ github.run_number }})" \
+            --notes "Built from commit ${{ github.sha }} on $(date -u +%Y-%m-%d)" \
+            --prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

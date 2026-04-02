@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="app-version" content="__APP_VERSION__" />
+  <title>Top-Down Survival Shooter</title>
+  <style>
+__INLINE_CSS__
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div id="hp-hud" class="hud-track top-hud" aria-label="Player health">
+      <div id="hp-fill" class="hud-fill hp-fill"></div>
+    </div>
+    <div class="frame">
+      <canvas id="game" width="1280" height="720"></canvas>
+    </div>
+    <div id="xp-hud" class="hud-track bottom-hud" aria-label="Player experience">
+      <div id="xp-fill" class="hud-fill xp-fill"></div>
+    </div>
+    <div id="stats-panel" class="stats-panel" aria-live="polite">
+      <span id="stat-hp">HP: 0 / 0</span>
+      <span id="stat-lvl">LVL: 1</span>
+      <span id="stat-ammo">Ammo: 0/0</span>
+      <span id="stat-perks">Perks: 0</span>
+      <span id="stat-enemies">Enemies: 0</span>
+      <span id="stat-time">Time: 0.0s</span>
+      <span id="stat-fps">FPS: 0</span>
+    </div>
+    <div id="weapon-switch" class="weapon-switch" aria-live="polite">
+      <div id="weapon-slot-melee" class="weapon-slot">
+        <span class="weapon-key">1</span>
+        <span class="weapon-name">⚔️ Sword</span>
+      </div>
+      <div id="weapon-slot-gun" class="weapon-slot active">
+        <span class="weapon-key">2</span>
+        <span class="weapon-name">🔫 Gun</span>
+      </div>
+      <div id="weapon-slot-bow" class="weapon-slot">
+        <span class="weapon-key">3</span>
+        <span class="weapon-name">🏹 Bow</span>
+      </div>
+    </div>
+    <div id="skill-indicator" class="skill-indicator" aria-live="polite">
+      <span class="skill-icon" aria-hidden="true">💨</span>
+      <div class="skill-content">
+        <span class="skill-label">Blink (Q)</span>
+        <span id="skill-cooldown-text" class="skill-cooldown-text">Ready</span>
+      </div>
+      <div class="skill-bar-track">
+        <div id="skill-bar-fill" class="skill-bar-fill"></div>
+      </div>
+    </div>
+    <div id="shout-indicator" class="skill-indicator" aria-live="polite">
+      <span class="skill-icon" aria-hidden="true">🗣️</span>
+      <div class="skill-content">
+        <span class="skill-label">Shout (E)</span>
+        <span id="shout-cooldown-text" class="skill-cooldown-text">Ready</span>
+      </div>
+      <div class="skill-bar-track">
+        <div id="shout-bar-fill" class="skill-bar-fill"></div>
+      </div>
+    </div>
+    <div id="fireball-indicator" class="skill-indicator" aria-live="polite">
+      <span class="skill-icon" aria-hidden="true">🔥</span>
+      <div class="skill-content">
+        <span class="skill-label">Fireball (F)</span>
+        <span id="fireball-cooldown-text" class="skill-cooldown-text">Ready</span>
+      </div>
+      <div class="skill-bar-track">
+        <div id="fireball-bar-fill" class="skill-bar-fill"></div>
+      </div>
+    </div>
+    <div id="debug-controls" class="debug-controls" hidden>
+      <div class="debug-title">Debug Enemy Spawner</div>
+      <label class="debug-toggle" for="debug-director-toggle">
+        <input id="debug-director-toggle" type="checkbox" />
+        Director auto spawning
+      </label>
+      <div class="debug-buttons">
+        <button type="button" data-enemy-type="chaser">Spawn Chaser</button>
+        <button type="button" data-enemy-type="slime">Spawn Slime</button>
+        <button type="button" data-enemy-type="shooter">Spawn Shooter</button>
+        <button type="button" data-enemy-type="assaultShooter">Spawn Assault Shooter</button>
+        <button type="button" data-enemy-type="shotgunShooter">Spawn Shotgun Shooter</button>
+        <button type="button" data-enemy-type="bomber">Spawn Bomber</button>
+        <button type="button" data-enemy-type="mortar">Spawn Mortar</button>
+        <button id="debug-level-up" type="button">Level Up Player</button>
+      </div>
+    </div>
+  </div>
+
+<!-- __INLINE_SCRIPT__ -->
+</body>
+</html>
