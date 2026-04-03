@@ -1,29 +1,28 @@
 import { createEnemy } from "../entities/enemy.js";
+import { createRenderer } from "../core/renderer.js";
 import { GAME_CONFIG } from "../core/constants.js";
+import { createGameServices } from "../core/gameServices.js";
+import { createInitialState } from "../core/state.js";
 import { createWorldSystem } from "../systems/worldSystem.js";
 import { updateAssaultShooterBehavior } from "../systems/enemies/assaultShooter.js";
 import { updateBomberBehavior } from "../systems/enemies/bomber.js";
 import { updateChaserSlimeBehavior } from "../systems/enemies/chaserSlime.js";
+import { spawnFloatingText } from "../systems/enemies/common.js";
 import { computeFlyingBomberPath, updateFlyingBomberBehavior } from "../systems/enemies/flyingBomber.js";
 import { updateMortarBehavior } from "../systems/enemies/mortar.js";
 import { updateShooterBehavior } from "../systems/enemies/shooter.js";
 import { updateShotgunShooterBehavior } from "../systems/enemies/shotgunShooter.js";
 import { updateIndicators } from "../systems/indicatorSystem.js";
+import { updateEffects, updateFloatingTexts, updateSlashEffects } from "../systems/effectSystem.js";
+import { updateProjectiles as updateProjectilesSystem } from "../systems/projectileSystem.js";
 
-const SHOWCASE_WIDTH = 820;
-const SHOWCASE_HEIGHT = 420;
 const DT = 1 / 60;
 const DIFFICULTY = 10;
 const SPEED_MULT = 1;
-const WORLD_TO_CANVAS_SCALE = 0.36;
 const PLAYER_MAX_HP = 140;
 const PLAYER_RESPAWN_DELAY = 0.95;
 const BOMBER_RESPAWN_DELAY = 0.85;
-const SLIME_FIRE_DAMAGE_PER_SECOND = 70;
-const SLIME_FIRE_ZONES = [
-  { x: -120, y: -24, radius: 34 },
-  { x: -70, y: 26, radius: 34 },
-];
+const SLIME_OPENING_SPLIT_DELAY = 0.5;
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
 
 const DEFINITIONS = [
@@ -39,7 +38,7 @@ const DEFINITIONS = [
     title: "Slime",
     badge: "Melee",
     description: "Aggressive direct pursuit, splits into smaller slimes when killed.",
-    legend: "Orange pools deal damage and trigger slime splitting on death.",
+    legend: "Takes a scripted hit after 0.5s to split once, then continues normal pursuit.",
   },
   {
     type: "shooter",
@@ -85,33 +84,18 @@ const DEFINITIONS = [
   },
 ];
 
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-
 function createMockState() {
-  return {
-    time: 0,
-    projectiles: [],
-    indicators: [],
-    effects: [],
-    floatingTexts: [],
-    enemies: [],
-    screenFx: { shake: 0, damageFlash: 0, actionFlash: 0, hitStop: 0 },
-    systems: {
-      world: createWorldSystem(1337),
-    },
-  };
-}
-
-function createPlayer() {
-  return {
-    x: 0,
-    y: 0,
-    radius: 12,
-    hp: PLAYER_MAX_HP,
-    maxHp: PLAYER_MAX_HP,
-  };
+  const state = createInitialState();
+  state.running = true;
+  state.paused = false;
+  state.titleScreen = false;
+  state.gameOver = false;
+  state.player.x = 0;
+  state.player.y = 0;
+  state.player.aim.x = state.player.x + 120;
+  state.player.aim.y = state.player.y;
+  state.systems.world = createWorldSystem(1337);
+  return state;
 }
 
 function makeEnemy(type) {
@@ -160,14 +144,29 @@ function resetEnemyPosition(enemy, type) {
 
 function createSimulation(type) {
   const state = createMockState();
-  const player = createPlayer();
+  state.player.x = 0;
+  state.player.y = 0;
+  state.player.hp = PLAYER_MAX_HP;
+  state.player.maxHp = PLAYER_MAX_HP;
+  state.player.radius = 12;
+
+  const services = createGameServices({
+    gameState: state,
+    canvas,
+    documentRef: document,
+    isDebugMode: false,
+  });
+  const renderer = createRenderer(canvas, state);
+
   const enemy = makeEnemy(type);
   state.enemies.push(enemy);
 
   return {
     type,
     state,
-    player,
+    services,
+    renderer,
+    player: state.player,
     enemy,
     enemyRespawnTimer: 0,
     playerRespawnTimer: 0,
@@ -176,8 +175,10 @@ function createSimulation(type) {
     slimeScript:
       type === "slime"
         ? {
-            phase: "fire-lane",
+            phase: "opening-split",
             splitEvents: 0,
+            openingSplitDone: false,
+            openingSplitDelay: SLIME_OPENING_SPLIT_DELAY,
           }
         : null,
   };
@@ -192,9 +193,14 @@ function resetSlimeScenario(sim) {
   sim.enemyRespawnTimer = 0;
   sim.enemy = makeEnemy("slime");
   sim.state.enemies.push(sim.enemy);
+  sim.state.player.hp = sim.player.maxHp;
+  sim.state.player.x = sim.player.x;
+  sim.state.player.y = sim.player.y;
   sim.slimeScript = {
-    phase: "fire-lane",
+    phase: "opening-split",
     splitEvents: 0,
+    openingSplitDone: false,
+    openingSplitDelay: SLIME_OPENING_SPLIT_DELAY,
   };
 }
 
@@ -203,6 +209,9 @@ function respawnPlayer(sim) {
   sim.player.x = 0;
   sim.player.y = 0;
   sim.playerRespawnTimer = 0;
+  sim.state.player.hp = sim.player.hp;
+  sim.state.player.x = sim.player.x;
+  sim.state.player.y = sim.player.y;
 
   if (sim.type === "slime") {
     resetSlimeScenario(sim);
@@ -231,13 +240,29 @@ function handlePlayerDamageFromContact(sim) {
   }
 
   const enemies = sim.type === "slime" ? sim.state.enemies : sim.enemy ? [sim.enemy] : [];
+  let accumulatedContactDamage = 0;
   for (let i = 0; i < enemies.length; i += 1) {
     const enemy = enemies[i];
     const dist = Math.hypot(enemy.x - sim.player.x, enemy.y - sim.player.y);
     if (dist <= enemy.radius + sim.player.radius) {
       const dps = Math.max(6, enemy.contactDamage || 10);
-      sim.player.hp -= dps * DT;
+      accumulatedContactDamage += dps * DT;
     }
+  }
+
+  if (accumulatedContactDamage > 0) {
+    sim.player.hp -= accumulatedContactDamage;
+    spawnFloatingText(
+      sim.state,
+      `-${Math.max(1, Math.round(accumulatedContactDamage))}`,
+      sim.player.x,
+      sim.player.y - sim.player.radius - 8,
+      "255,142,150",
+      20,
+      "damage"
+    );
+    sim.state.screenFx.shake = Math.min(14, sim.state.screenFx.shake + 0.9);
+    sim.state.screenFx.damageFlash = Math.min(1, sim.state.screenFx.damageFlash + 0.06);
   }
 }
 
@@ -268,35 +293,51 @@ function updateSlimeScript(sim) {
   }
 
   const script = sim.slimeScript;
-  for (let i = sim.state.enemies.length - 1; i >= 0; i -= 1) {
-    const slime = sim.state.enemies[i];
-    if (slime.type !== "slime") {
-      continue;
+  if (!script.openingSplitDone) {
+    if (script.openingSplitDelay > 0) {
+      script.openingSplitDelay = Math.max(0, script.openingSplitDelay - DT);
+      script.phase = "opening-delay";
+      return;
     }
 
-    let inFire = false;
-    for (let z = 0; z < SLIME_FIRE_ZONES.length; z += 1) {
-      const zone = SLIME_FIRE_ZONES[z];
-      const dist = Math.hypot(slime.x - zone.x, slime.y - zone.y);
-      if (dist <= zone.radius + slime.radius * 0.35) {
-        inFire = true;
-        break;
+    const openingTarget = sim.state.enemies.find((enemy) => enemy.type === "slime" && (enemy.slimeTier || 0) === 0);
+    if (openingTarget) {
+      const scriptedDamage = Math.max(1, openingTarget.hp);
+      openingTarget.hp -= scriptedDamage;
+      sim.state.effects.push({
+        x: openingTarget.x,
+        y: openingTarget.y,
+        radius: Math.max(8, openingTarget.radius * 0.4),
+        elapsed: 0,
+        duration: 0.16,
+        growth: 18,
+        color: "255, 224, 170",
+      });
+      spawnFloatingText(
+        sim.state,
+        `-${Math.max(1, Math.round(scriptedDamage))}`,
+        openingTarget.x,
+        openingTarget.y - openingTarget.radius - 4,
+        "255,214,168",
+        21,
+        "damage"
+      );
+      sim.state.screenFx.shake = Math.min(14, sim.state.screenFx.shake + 0.7);
+
+      const index = sim.state.enemies.indexOf(openingTarget);
+      if (index >= 0 && openingTarget.hp <= 0) {
+        sim.state.enemies.splice(index, 1);
       }
-    }
-
-    if (!inFire) {
-      continue;
-    }
-
-    slime.hp -= SLIME_FIRE_DAMAGE_PER_SECOND * DT;
-    if (slime.hp <= 0) {
-      sim.state.enemies.splice(i, 1);
-      if ((slime.slimeTier || 0) < (slime.maxSlimeTier || 0)) {
-        splitSlimeEnemy(sim, slime);
+      if (openingTarget.hp <= 0 && (openingTarget.slimeTier || 0) < (openingTarget.maxSlimeTier || 0)) {
+        splitSlimeEnemy(sim, openingTarget);
         script.splitEvents += 1;
       }
     }
+    script.openingSplitDone = true;
+    script.phase = "active";
+    return;
   }
+
 }
 
 function handleProjectileHits(sim) {
@@ -304,19 +345,36 @@ function handleProjectileHits(sim) {
     return;
   }
 
+  let accumulatedProjectileDamage = 0;
   for (let i = sim.state.projectiles.length - 1; i >= 0; i -= 1) {
     const projectile = sim.state.projectiles[i];
     const dist = Math.hypot(projectile.position.x - sim.player.x, projectile.position.y - sim.player.y);
     const hitRadius = (projectile.radius || 4) + sim.player.radius;
     if (dist <= hitRadius) {
-      sim.player.hp -= projectile.damage || 8;
+      accumulatedProjectileDamage += projectile.damage || 8;
       sim.state.projectiles.splice(i, 1);
     }
+  }
+
+  if (accumulatedProjectileDamage > 0) {
+    sim.player.hp -= accumulatedProjectileDamage;
+    spawnFloatingText(
+      sim.state,
+      `-${Math.max(1, Math.round(accumulatedProjectileDamage))}`,
+      sim.player.x,
+      sim.player.y - sim.player.radius - 8,
+      "255,142,150",
+      20,
+      "damage"
+    );
+    sim.state.screenFx.shake = Math.min(14, sim.state.screenFx.shake + 0.9);
+    sim.state.screenFx.damageFlash = Math.min(1, sim.state.screenFx.damageFlash + 0.06);
   }
 }
 
 function updateEnemyBehavior(sim) {
-  const { state, player, type } = sim;
+  const { state, type } = sim;
+  const player = state.player;
   const enemy = sim.enemy;
   if (!enemy && type !== "slime") {
     return;
@@ -432,15 +490,7 @@ function resolveEnemyCrowdingInShowcase(sim) {
 }
 
 function updateProjectiles(sim) {
-  for (let i = sim.state.projectiles.length - 1; i >= 0; i -= 1) {
-    const p = sim.state.projectiles[i];
-    p.position.x += p.velocity.x * DT;
-    p.position.y += p.velocity.y * DT;
-    p.lifetime -= DT;
-    if (p.lifetime <= 0) {
-      sim.state.projectiles.splice(i, 1);
-    }
-  }
+  updateProjectilesSystem(sim.services, DT);
 }
 
 function updateIndicatorsAndEffects(sim) {
@@ -452,21 +502,9 @@ function updateIndicatorsAndEffects(sim) {
     }
   }
 
-  for (let i = sim.state.effects.length - 1; i >= 0; i -= 1) {
-    const effect = sim.state.effects[i];
-    effect.elapsed += DT;
-    if (effect.elapsed >= effect.duration) {
-      sim.state.effects.splice(i, 1);
-    }
-  }
-
-  for (let i = sim.state.floatingTexts.length - 1; i >= 0; i -= 1) {
-    const entry = sim.state.floatingTexts[i];
-    entry.elapsed += DT;
-    if (entry.elapsed >= entry.duration) {
-      sim.state.floatingTexts.splice(i, 1);
-    }
-  }
+  updateSlashEffects(sim.state, DT);
+  updateEffects(sim.state, DT);
+  updateFloatingTexts(sim.state, DT);
 }
 
 function updateSimulation(sim) {
@@ -502,199 +540,10 @@ function updateSimulation(sim) {
 
   if (sim.player.hp <= 0 && sim.playerRespawnTimer <= 0) {
     sim.player.hp = 0;
+    sim.state.player.hp = 0;
     sim.deaths += 1;
     sim.playerRespawnTimer = PLAYER_RESPAWN_DELAY;
     queueEnemyRespawn(sim, sim.type === "bomber" ? BOMBER_RESPAWN_DELAY : 0.15);
-  }
-}
-
-function toCanvasSpace(x, y, width, height) {
-  return {
-    x: width * 0.5 + x * WORLD_TO_CANVAS_SCALE,
-    y: height * 0.5 + y * WORLD_TO_CANVAS_SCALE,
-  };
-}
-
-function renderBackground(ctx, width, height) {
-  // Static background (no scrolling/parallax animation)
-  ctx.fillStyle = "#0d141b";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "rgba(141, 171, 196, 0.08)";
-  ctx.lineWidth = 1;
-  const step = 32;
-  for (let x = 0; x < width; x += step) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
-  }
-  for (let y = 0; y < height; y += step) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-}
-
-function renderIndicator(ctx, indicator, width, height) {
-  const p = toCanvasSpace(indicator.position.x, indicator.position.y, width, height);
-  const progress = clamp(indicator.elapsed / indicator.duration, 0, 1);
-
-  if (indicator.type === "circle") {
-    const radius = indicator.size.radius * WORLD_TO_CANVAS_SCALE;
-    ctx.strokeStyle = "rgba(255, 83, 95, 0.95)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(255, 83, 95, 0.24)";
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.arc(p.x, p.y, radius, -Math.PI * 0.5, -Math.PI * 0.5 + progress * Math.PI * 2);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-function renderFlyingLane(ctx, sim) {
-  const enemy = sim.enemy;
-  if (!enemy || enemy.type !== "flyingBomber" || enemy.flyPhase !== "warning") {
-    return;
-  }
-
-  const from = toCanvasSpace(enemy.flyFromX, enemy.flyFromY, SHOWCASE_WIDTH, SHOWCASE_HEIGHT);
-  const exit = toCanvasSpace(enemy.flyExitX, enemy.flyExitY, SHOWCASE_WIDTH, SHOWCASE_HEIGHT);
-  const warningProgress = 1 - clamp(enemy.warningTimer / Math.max(0.001, enemy.warningDuration), 0, 1);
-
-  ctx.save();
-  ctx.globalAlpha = 0.3 + warningProgress * 0.2;
-  ctx.strokeStyle = "#ff3355";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([12, 8]);
-  ctx.beginPath();
-  ctx.moveTo(from.x, from.y);
-  ctx.lineTo(exit.x, exit.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-
-  const dx = exit.x - from.x;
-  const dy = exit.y - from.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const dirX = dx / len;
-  const dirY = dy / len;
-  const perpX = -dirY;
-  const perpY = dirX;
-  const spacing = 120;
-  const offset = (sim.state.time * 180) % spacing;
-
-  for (let d = offset; d < len; d += spacing) {
-    const ax = from.x + dirX * d;
-    const ay = from.y + dirY * d;
-    const size = 11;
-    ctx.fillStyle = "rgba(255, 72, 94, 0.78)";
-    ctx.beginPath();
-    ctx.moveTo(ax + dirX * size, ay + dirY * size);
-    ctx.lineTo(ax - dirX * size + perpX * size * 0.6, ay - dirY * size + perpY * size * 0.6);
-    ctx.lineTo(ax - dirX * size - perpX * size * 0.6, ay - dirY * size - perpY * size * 0.6);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-function render(sim, ctx, width, height) {
-  renderBackground(ctx, width, height);
-
-  if (sim.type === "slime") {
-    for (let i = 0; i < SLIME_FIRE_ZONES.length; i += 1) {
-      const zone = SLIME_FIRE_ZONES[i];
-      const p = toCanvasSpace(zone.x, zone.y, width, height);
-      const r = zone.radius * WORLD_TO_CANVAS_SCALE;
-      ctx.fillStyle = "rgba(255, 106, 54, 0.22)";
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255, 148, 72, 0.72)";
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }
-
-  for (let i = 0; i < sim.state.indicators.length; i += 1) {
-    renderIndicator(ctx, sim.state.indicators[i], width, height);
-  }
-
-  for (let i = 0; i < sim.state.effects.length; i += 1) {
-    const e = sim.state.effects[i];
-    const p = toCanvasSpace(e.x, e.y, width, height);
-    const alpha = 1 - e.elapsed / e.duration;
-    ctx.strokeStyle = `rgba(${e.color || "255, 220, 120"}, ${Math.max(0, alpha)})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, (e.radius + e.elapsed * (e.growth || 12)) * WORLD_TO_CANVAS_SCALE, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  if (sim.enemy && sim.enemy.type === "bomber") {
-    const center = toCanvasSpace(sim.enemy.x, sim.enemy.y, width, height);
-    const pulse = 0.4 + 0.6 * Math.sin(sim.state.time * 8 + sim.enemy.x * 0.02);
-    ctx.strokeStyle = `rgba(255, 116, 144, ${0.24 + pulse * 0.32})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, (sim.enemy.explosionRadius || 70) * WORLD_TO_CANVAS_SCALE, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  renderFlyingLane(ctx, sim);
-
-  const playerP = toCanvasSpace(sim.player.x, sim.player.y, width, height);
-  ctx.fillStyle = sim.playerRespawnTimer > 0 ? "rgba(116, 240, 167, 0.45)" : "#74f0a7";
-  ctx.beginPath();
-  ctx.arc(playerP.x, playerP.y, sim.player.radius * WORLD_TO_CANVAS_SCALE, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (sim.type === "slime") {
-    for (let i = 0; i < sim.state.enemies.length; i += 1) {
-      const enemy = sim.state.enemies[i];
-      const enemyP = toCanvasSpace(enemy.x, enemy.y, width, height);
-      ctx.fillStyle = enemy.color;
-      ctx.beginPath();
-      ctx.arc(enemyP.x, enemyP.y, enemy.radius * WORLD_TO_CANVAS_SCALE, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (sim.enemy) {
-    const enemyP = toCanvasSpace(sim.enemy.x, sim.enemy.y, width, height);
-    ctx.fillStyle = sim.enemy.color;
-    ctx.beginPath();
-    ctx.arc(enemyP.x, enemyP.y, sim.enemy.radius * WORLD_TO_CANVAS_SCALE, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  for (let i = 0; i < sim.state.projectiles.length; i += 1) {
-    const projectile = sim.state.projectiles[i];
-    const p = toCanvasSpace(projectile.position.x, projectile.position.y, width, height);
-    ctx.fillStyle = projectile.color || "#ff8d6d";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, (projectile.radius || 4) * WORLD_TO_CANVAS_SCALE, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(12, 12, width - 24, 8);
-  ctx.fillStyle = "#79e57e";
-  const playerHpRatio = sim.player.maxHp <= 0 ? 0 : clamp(sim.player.hp / sim.player.maxHp, 0, 1);
-  ctx.fillRect(12, 12, (width - 24) * playerHpRatio, 8);
-
-  if (sim.playerRespawnTimer > 0) {
-    ctx.fillStyle = "rgba(255, 220, 140, 0.92)";
-    ctx.font = "bold 16px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("PLAYER DOWN", width * 0.5, 34);
-    ctx.textAlign = "start";
   }
 }
 
@@ -803,7 +652,7 @@ function updateStats(sim) {
 
 function frame() {
   updateSimulation(activeSim);
-  render(activeSim, ctx, canvas.width, canvas.height);
+  activeSim.renderer.render();
   updateStats(activeSim);
   requestAnimationFrame(frame);
 }
