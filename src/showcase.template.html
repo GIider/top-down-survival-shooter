@@ -5,169 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="app-version" content="__APP_VERSION__" />
   <title>Enemy Showcase - Top-Down Survival Shooter</title>
-  <style>
-    :root {
-      --bg: #0a0f14;
-      --panel: #101922;
-      --border: #243445;
-      --text: #e8f2fa;
-      --muted: #9fb5c7;
-      --accent: #88e5b9;
-      --danger: #ff5e73;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--text);
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background:
-        radial-gradient(circle at 8% -15%, #1e3448 0%, transparent 42%),
-        radial-gradient(circle at 92% -10%, #2e1f2f 0%, transparent 36%),
-        var(--bg);
-    }
-    .page {
-      max-width: 1320px;
-      margin: 0 auto;
-      padding: 22px 16px 56px;
-    }
-    .hero {
-      border: 1px solid var(--border);
-      background: linear-gradient(120deg, rgba(136, 229, 185, 0.08), rgba(255, 94, 115, 0.06));
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 16px;
-    }
-    h1 {
-      margin: 0 0 8px;
-      font-size: clamp(1.6rem, 3vw, 2.2rem);
-      letter-spacing: 0.02em;
-    }
-    .sub {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-    .top-links {
-      margin-top: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .top-links a {
-      color: var(--text);
-      text-decoration: none;
-      border: 1px solid var(--border);
-      background: rgba(16, 25, 34, 0.85);
-      border-radius: 999px;
-      padding: 7px 11px;
-      font-size: 0.88rem;
-    }
-    .top-links a:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-    .stage {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    .stage-head {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      padding: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .stage-title {
-      margin: 0;
-      font-size: 1.05rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .chip {
-      font-size: 0.72rem;
-      letter-spacing: 0.02em;
-      color: var(--muted);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      padding: 3px 7px;
-      border-radius: 999px;
-    }
-    .picker-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-    .picker-wrap select {
-      background: rgba(12, 18, 25, 0.95);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 10px;
-      font: inherit;
-      min-width: 180px;
-    }
-    canvas {
-      width: 100%;
-      height: auto;
-      display: block;
-      background: #0c1117;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      image-rendering: auto;
-    }
-    .stage-body {
-      padding: 10px 12px 14px;
-      color: var(--muted);
-      font-size: 0.88rem;
-      line-height: 1.35;
-      display: grid;
-      gap: 5px;
-    }
-    .legend {
-      margin-top: 2px;
-      color: #b9ccd9;
-      font-size: 0.8rem;
-    }
-    .stats {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 4px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      font-size: 0.78rem;
-      color: #c8d7e3;
-    }
-    .stats span {
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 999px;
-      padding: 3px 8px;
-      background: rgba(255, 255, 255, 0.03);
-    }
-    footer {
-      margin-top: 16px;
-      color: var(--muted);
-      font-size: 0.84rem;
-    }
-  </style>
+  <link rel="stylesheet" href="./static-pages.css" />
 </head>
 <body>
   <main class="page">
-    <section class="hero">
-      <h1>Enemy Behavior Showcase</h1>
-      <p class="sub">
-        Animated mini-simulations of every enemy archetype. This page is documentation-only and does not affect game progression.
-      </p>
-      <div class="top-links">
-        <a href="./index.html">Launcher</a>
-        <a href="./game.html">Play Game</a>
-        <a href="./perk-library.html">Perk Library</a>
-      </div>
-    </section>
+    __STATIC_SITE_HEADER__
 
     <section class="stage" aria-label="Enemy showcase stage">
       <div class="stage-head">
@@ -188,9 +30,7 @@
       </div>
     </section>
 
-    <footer>
-      Built from in-game enemy logic. Version __APP_VERSION__.
-    </footer>
+    __STATIC_SITE_FOOTER__
   </main>
 
 <!-- __INLINE_SCRIPT__ -->

@@ -20,7 +20,8 @@ body {
     radial-gradient(circle at 20% 20%, rgba(63, 126, 188, 0.2) 0, transparent 44%),
     radial-gradient(circle at 80% 80%, rgba(116, 196, 146, 0.18) 0, transparent 46%),
     linear-gradient(130deg, var(--bg-a), var(--bg-b));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .shell {
@@ -29,6 +30,55 @@ body {
   gap: 10px;
   justify-items: center;
   animation: settle 500ms ease-out;
+}
+
+.hero {
+  border: 1px solid rgba(182, 240, 255, 0.35);
+  background: linear-gradient(120deg, rgba(136, 229, 185, 0.08), rgba(255, 94, 115, 0.06));
+  border-radius: 14px;
+  padding: 14px 16px;
+  width: 100%;
+}
+
+.game-hero h1 {
+  margin: 0 0 6px;
+  font-size: clamp(16px, 2.2vw, 24px);
+  letter-spacing: 0.05em;
+}
+
+.sub {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+  font-size: 12px;
+}
+
+.top-links {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.top-links a {
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid rgba(182, 240, 255, 0.35);
+  background: rgba(16, 25, 34, 0.85);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.top-links a:hover {
+  border-color: #88e5b9;
+  color: #88e5b9;
+}
+
+.top-links a[aria-current="page"] {
+  border-color: #88e5b9;
+  color: #88e5b9;
+  background: rgba(136, 229, 185, 0.1);
 }
 
 h1 {

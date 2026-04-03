@@ -11,8 +11,10 @@ const rootDir = path.resolve(__dirname, "..");
 
 const distDir = path.join(rootDir, "dist");
 const templateHtmlPath = path.join(rootDir, "src", "index.template.html");
+const perkLibraryTemplateHtmlPath = path.join(rootDir, "src", "perk-library.template.html");
 const showcaseTemplateHtmlPath = path.join(rootDir, "src", "showcase.template.html");
 const sourceCssPath = path.join(rootDir, "src", "style.css");
+const staticPagesCssPath = path.join(rootDir, "src", "static-pages.css");
 const sourceJsEntryPath = path.join(rootDir, "src", "main.js");
 const showcaseJsEntryPath = path.join(rootDir, "src", "showcase", "main.js");
 const buildNumberPath = path.join(rootDir, "scripts", "build-number.json");
@@ -22,6 +24,7 @@ const outputPerkLibrarySourceHtmlPath = path.join(distDir, "perk-library.source.
 const outputPerkLibraryHtmlPath = path.join(distDir, "perk-library.html");
 const outputShowcaseSourceHtmlPath = path.join(distDir, "showcase.source.html");
 const outputShowcaseHtmlPath = path.join(distDir, "showcase.html");
+const outputStaticPagesCssPath = path.join(distDir, "static-pages.css");
 const outputLandingHtmlPath = path.join(distDir, "index.html");
 const legacyPerksDirPath = path.join(distDir, "perks");
 
@@ -34,7 +37,38 @@ function escapeHtml(text) {
     .replaceAll("'", "&#39;");
 }
 
-function buildPerkLibraryHtml(appVersion) {
+function buildStaticPageNav(currentPage) {
+  const links = [
+    { href: "./game.html", label: "Play Game", key: "game" },
+    { href: "./perk-library.html", label: "Perk Library", key: "perk-library" },
+    { href: "./showcase.html", label: "Enemy Showcase", key: "showcase" },
+  ];
+
+  return links
+    .map((link) => {
+      const currentAttr = link.key === currentPage ? ' aria-current="page"' : "";
+      return `<a href="${link.href}"${currentAttr}>${link.label}</a>`;
+    })
+    .join("\n");
+}
+
+function buildStaticPageHeader({ title, subtitle, currentPage }) {
+  return `<section class="hero">
+      <h1>${escapeHtml(title)}</h1>
+      <p class="sub">${escapeHtml(subtitle)}</p>
+      <nav class="top-links" aria-label="Static page navigation">
+${buildStaticPageNav(currentPage)}
+      </nav>
+    </section>`;
+}
+
+function buildStaticPageFooter(appVersion) {
+  return `<footer>
+      Generated from game build ${escapeHtml(appVersion)}. <a href="https://github.com/GIider/top-down-survival-shooter">GitHub Repository</a>
+    </footer>`;
+}
+
+function buildPerkLibraryParts() {
   const sorted = [...skillPerkCatalog].sort((a, b) => a.name.localeCompare(b.name));
   const groups = new Map();
 
@@ -82,110 +116,7 @@ ${cards}
     })
     .join("\n");
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Perk Library</title>
-    <style>
-      :root {
-        --bg: #0c1014;
-        --bg-alt: #131a20;
-        --card: #171f27;
-        --text: #e9f1f5;
-        --muted: #9eb4bf;
-        --accent: #7bf0c6;
-        --border: #22303b;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        color: var(--text);
-        background: radial-gradient(circle at 15% -10%, #19303c 0, var(--bg) 45%), var(--bg);
-      }
-      .page {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 28px 18px 72px;
-      }
-      header {
-        margin-bottom: 18px;
-        padding: 16px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: linear-gradient(120deg, rgba(123, 240, 198, 0.08), rgba(255, 255, 255, 0.02));
-      }
-      h1 { margin: 0 0 10px; font-size: 1.8rem; }
-      .sub { color: var(--muted); margin: 0; }
-      nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 14px 0 24px;
-      }
-      nav a {
-        text-decoration: none;
-        color: var(--text);
-        font-size: 0.88rem;
-        border: 1px solid var(--border);
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: var(--bg-alt);
-      }
-      nav a:hover { border-color: var(--accent); color: var(--accent); }
-      .tag-section { margin: 26px 0 20px; }
-      .tag-section h2 {
-        margin: 0 0 12px;
-        font-size: 1.15rem;
-        text-transform: capitalize;
-      }
-      .tag-section h2 span { color: var(--muted); font-size: 0.95rem; }
-      .perk-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 12px;
-      }
-      .perk-card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 12px;
-      }
-      .perk-card h3 { margin: 0 0 8px; font-size: 1rem; }
-      .perk-card p { margin: 0 0 10px; color: var(--muted); line-height: 1.35; font-size: 0.92rem; }
-      .meta {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .perk-id {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-        font-size: 0.8rem;
-        color: #b6c9d2;
-      }
-      .perk-tags { color: var(--accent); font-size: 0.78rem; }
-      footer { margin-top: 30px; color: var(--muted); font-size: 0.84rem; }
-    </style>
-  </head>
-  <body>
-    <main class="page">
-      <header>
-        <h1>Perk Library</h1>
-        <p class="sub">Automatically generated from perk metadata. Version ${escapeHtml(appVersion)}.</p>
-      </header>
-      <nav>
-${navItems}
-      </nav>
-${sections}
-      <footer>
-        Generated during build from src/systems/perks/skillPerkCatalog.js.
-        <a href="./index.html">Back to launcher</a>
-      </footer>
-    </main>
-  </body>
-</html>`;
+  return { navItems, sections };
 }
 
 function buildLandingHtml(appVersion) {
@@ -197,12 +128,12 @@ function buildLandingHtml(appVersion) {
     <title>Top-Down Survival Shooter</title>
     <style>
       :root {
-        --bg: #0d1218;
-        --panel: #141d27;
-        --border: #273647;
-        --text: #e9f2f8;
-        --muted: #a6bbc8;
-        --accent: #7bf0c6;
+        --bg: #0a0f14;
+        --panel: #101922;
+        --border: #243445;
+        --text: #e8f2fa;
+        --muted: #9fb5c7;
+        --accent: #88e5b9;
       }
       * { box-sizing: border-box; }
       body {
@@ -212,13 +143,16 @@ function buildLandingHtml(appVersion) {
         place-items: center;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         color: var(--text);
-        background: radial-gradient(circle at 15% -10%, #203447 0, var(--bg) 52%), var(--bg);
+        background:
+          radial-gradient(circle at 8% -15%, #1e3448 0%, transparent 42%),
+          radial-gradient(circle at 92% -10%, #2e1f2f 0%, transparent 36%),
+          var(--bg);
       }
       .panel {
         width: min(760px, calc(100vw - 28px));
         background: var(--panel);
         border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: 14px;
         padding: 22px;
       }
       h1 {
@@ -240,7 +174,7 @@ function buildLandingHtml(appVersion) {
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 12px 14px;
-        background: #101923;
+        background: rgba(12, 18, 25, 0.95);
       }
       a:hover {
         border-color: var(--accent);
@@ -298,10 +232,12 @@ async function runBuild() {
     buildNumber = await readAndBumpBuildNumber();
   }
   const appVersion = `0.${buildNumber}`;
-  const [templateHtml, showcaseTemplateHtml, cssContent] = await Promise.all([
+  const [templateHtml, perkLibraryTemplateHtml, showcaseTemplateHtml, cssContent, staticPagesCssContent] = await Promise.all([
     readFile(templateHtmlPath, "utf8"),
+    readFile(perkLibraryTemplateHtmlPath, "utf8"),
     readFile(showcaseTemplateHtmlPath, "utf8"),
     readFile(sourceCssPath, "utf8"),
+    readFile(staticPagesCssPath, "utf8"),
   ]);
 
   const jsBundleResult = await build({
@@ -335,6 +271,12 @@ async function runBuild() {
     legalComments: "none",
   });
 
+  const minifiedStaticPagesCssResult = await transform(staticPagesCssContent, {
+    loader: "css",
+    minify: true,
+    legalComments: "none",
+  });
+
   const composedHtml = templateHtml
     .replace(/__APP_VERSION__/g, appVersion)
     .replace("__INLINE_CSS__", minifiedCssResult.code)
@@ -342,6 +284,16 @@ async function runBuild() {
 
   const showcaseSourceHtml = showcaseTemplateHtml
     .replace(/__APP_VERSION__/g, appVersion)
+    .replace(
+      "__STATIC_SITE_HEADER__",
+      buildStaticPageHeader({
+        title: "Enemy Behavior Showcase",
+        subtitle:
+          "Animated mini-simulations of every enemy archetype. This page is documentation-only and does not affect game progression.",
+        currentPage: "showcase",
+      })
+    )
+    .replace("__STATIC_SITE_FOOTER__", buildStaticPageFooter(appVersion))
     .replace("<!-- __INLINE_SCRIPT__ -->", `  <script>\n${showcaseJsBundle}\n  </script>`);
 
   const minifiedHtml = await minify(composedHtml, {
@@ -371,7 +323,20 @@ async function runBuild() {
   await mkdir(distDir, { recursive: true });
   await rm(legacyPerksDirPath, { recursive: true, force: true });
 
-  const perksSourceHtml = buildPerkLibraryHtml(appVersion);
+  const perkLibraryParts = buildPerkLibraryParts();
+  const perksSourceHtml = perkLibraryTemplateHtml
+    .replace(/__APP_VERSION__/g, appVersion)
+    .replace(
+      "__STATIC_SITE_HEADER__",
+      buildStaticPageHeader({
+        title: "Perk Library",
+        subtitle: "Automatically generated from perk metadata.",
+        currentPage: "perk-library",
+      })
+    )
+    .replace("__PERK_TAG_NAV__", perkLibraryParts.navItems)
+    .replace("__PERK_LIBRARY_SECTIONS__", perkLibraryParts.sections)
+    .replace("__STATIC_SITE_FOOTER__", buildStaticPageFooter(appVersion));
   const perksHtml = await minify(perksSourceHtml, {
     collapseWhitespace: true,
     removeComments: true,
@@ -403,6 +368,7 @@ async function runBuild() {
   await writeFile(outputPerkLibraryHtmlPath, perksHtml, "utf8");
   await writeFile(outputShowcaseSourceHtmlPath, showcaseSourceHtml, "utf8");
   await writeFile(outputShowcaseHtmlPath, showcaseHtml, "utf8");
+  await writeFile(outputStaticPagesCssPath, minifiedStaticPagesCssResult.code, "utf8");
   await writeFile(outputLandingHtmlPath, landingHtml, "utf8");
 
   console.log(
