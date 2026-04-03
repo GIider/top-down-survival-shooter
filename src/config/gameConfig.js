@@ -354,7 +354,7 @@ export const GAME_CONFIG = {
     flail: {
       targetRadius: 112,
       maxRange: 178,
-      headRadius: 8,
+      headRadius: 12,
       chainHitRadius: 5,
       springStrength: 70,
       drag: 5.8,

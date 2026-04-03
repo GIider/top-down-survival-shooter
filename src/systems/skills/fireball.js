@@ -9,6 +9,15 @@ export function tryFireball(services, worldPointer) {
   const gameState = services.gameState;
   const player = gameState.player;
   const perkEngine = services.getPerkEngine();
+
+  // If a fireball is already in flight, F triggers manual detonation instead of casting another.
+  if (gameState.fireballs.length > 0) {
+    for (let i = 0; i < gameState.fireballs.length; i += 1) {
+      gameState.fireballs[i].manualDetonateRequested = true;
+    }
+    return true;
+  }
+
   if (player.fireballCooldownRemaining > 0) {
     return false;
   }
@@ -34,6 +43,7 @@ export function tryFireball(services, worldPointer) {
     splashRadius: FIREBALL_CONFIG.splashRadius,
     lifetime: FIREBALL_CONFIG.lifetime,
     alive: true,
+    manualDetonateRequested: false,
     detonateOnImpact: false,
     spawnFireField: false,
   };

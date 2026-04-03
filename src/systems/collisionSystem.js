@@ -384,6 +384,13 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
   let accumulatedTreeFireDamage = 0;
   const weapon = gameState.systems.weaponSystem;
   const world = gameState.systems.world;
+  const flailSnapshot =
+    weapon &&
+    weapon.isFlailSelected &&
+    weapon.isFlailSelected() &&
+    typeof weapon.getFlailSnapshot === "function"
+      ? weapon.getFlailSnapshot(player)
+      : null;
 
   if (weapon && typeof weapon.getActiveMeleeSwings === "function") {
     const swings = weapon.getActiveMeleeSwings();
@@ -494,9 +501,8 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     }
   }
 
-  if (weapon && weapon.isFlailSelected && weapon.isFlailSelected() && typeof weapon.getFlailSnapshot === "function") {
-    const flail = weapon.getFlailSnapshot(player);
-    if (flail) {
+  if (flailSnapshot) {
+    const flail = flailSnapshot;
       for (let e = gameState.enemies.length - 1; e >= 0; e -= 1) {
         const enemy = gameState.enemies[e];
         if (enemy.isRespawning) {
@@ -663,11 +669,32 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           continue;
         }
       }
-    }
   }
 
   for (let p = gameState.projectiles.length - 1; p >= 0; p -= 1) {
     const projectile = gameState.projectiles[p];
+
+    if (projectile.owner === "enemy" && flailSnapshot) {
+      const dxFlail = projectile.position.x - flailSnapshot.x;
+      const dyFlail = projectile.position.y - flailSnapshot.y;
+      if (Math.hypot(dxFlail, dyFlail) <= projectile.radius + flailSnapshot.radius) {
+        gameState.effects.push({
+          x: projectile.position.x,
+          y: projectile.position.y,
+          radius: Math.max(8, projectile.radius * 2),
+          elapsed: 0,
+          duration: 0.14,
+          growth: 14,
+          color: "190, 245, 255",
+        });
+        if (typeof weapon?.applyFlailImpactResponse === "function") {
+          weapon.applyFlailImpactResponse(0.12);
+        }
+        gameState.screenFx.actionFlash = Math.min(1, gameState.screenFx.actionFlash + 0.03);
+        gameState.projectiles.splice(p, 1);
+        continue;
+      }
+    }
 
     if (projectile.owner === "player") {
       for (let f = gameState.fireballs.length - 1; f >= 0; f -= 1) {
@@ -891,6 +918,12 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
   for (let f = gameState.fireballs.length - 1; f >= 0; f -= 1) {
     const fireball = gameState.fireballs[f];
     let directHit = false;
+
+    if (fireball.manualDetonateRequested) {
+      detonateFireball(gameState, fireball);
+      gameState.fireballs.splice(f, 1);
+      continue;
+    }
 
     for (let e = gameState.enemies.length - 1; e >= 0; e -= 1) {
       const enemy = gameState.enemies[e];
