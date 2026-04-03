@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, transform } from "esbuild";
@@ -14,11 +14,12 @@ const templateHtmlPath = path.join(rootDir, "src", "index.template.html");
 const sourceCssPath = path.join(rootDir, "src", "style.css");
 const sourceJsEntryPath = path.join(rootDir, "src", "main.js");
 const buildNumberPath = path.join(rootDir, "scripts", "build-number.json");
-const outputSourceHtmlPath = path.join(distDir, "index.source.html");
-const outputHtmlPath = path.join(distDir, "index.html");
-const outputPerksDirPath = path.join(distDir, "perks");
-const outputPerksSourceHtmlPath = path.join(outputPerksDirPath, "index.source.html");
-const outputPerksHtmlPath = path.join(outputPerksDirPath, "index.html");
+const outputGameSourceHtmlPath = path.join(distDir, "game.source.html");
+const outputGameHtmlPath = path.join(distDir, "game.html");
+const outputPerkLibrarySourceHtmlPath = path.join(distDir, "perk-library.source.html");
+const outputPerkLibraryHtmlPath = path.join(distDir, "perk-library.html");
+const outputLandingHtmlPath = path.join(distDir, "index.html");
+const legacyPerksDirPath = path.join(distDir, "perks");
 
 function escapeHtml(text) {
   return String(text)
@@ -175,8 +176,89 @@ ${navItems}
       </nav>
 ${sections}
       <footer>
-        Generated during build from src/systems/perks/skillPerkCatalog.js
+        Generated during build from src/systems/perks/skillPerkCatalog.js.
+        <a href="./index.html">Back to launcher</a>
       </footer>
+    </main>
+  </body>
+</html>`;
+}
+
+function buildLandingHtml(appVersion) {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Top-Down Survival Shooter</title>
+    <style>
+      :root {
+        --bg: #0d1218;
+        --panel: #141d27;
+        --border: #273647;
+        --text: #e9f2f8;
+        --muted: #a6bbc8;
+        --accent: #7bf0c6;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at 15% -10%, #203447 0, var(--bg) 52%), var(--bg);
+      }
+      .panel {
+        width: min(760px, calc(100vw - 28px));
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 22px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.7rem;
+      }
+      p {
+        margin: 0 0 14px;
+        color: var(--muted);
+      }
+      .links {
+        display: grid;
+        gap: 10px;
+      }
+      a {
+        display: block;
+        text-decoration: none;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: #101923;
+      }
+      a:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .meta {
+        margin-top: 14px;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <h1>Top-Down Survival Shooter</h1>
+      <p>Select a destination.</p>
+      <div class="links">
+        <a href="./game.html">Play Game</a>
+        <a href="./perk-library.html">Perk Library</a>
+        <a href="https://github.com/GIider/top-down-survival-shooter">GitHub Repository</a>
+      </div>
+      <div class="meta">Build version ${escapeHtml(appVersion)}</div>
     </main>
   </body>
 </html>`;
@@ -252,7 +334,7 @@ async function runBuild() {
   });
 
   await mkdir(distDir, { recursive: true });
-  await mkdir(outputPerksDirPath, { recursive: true });
+  await rm(legacyPerksDirPath, { recursive: true, force: true });
 
   const perksSourceHtml = buildPerkLibraryHtml(appVersion);
   const perksHtml = await minify(perksSourceHtml, {
@@ -267,12 +349,28 @@ async function runBuild() {
     keepClosingSlash: true,
   });
 
-  await writeFile(outputSourceHtmlPath, composedHtml, "utf8");
-  await writeFile(outputHtmlPath, minifiedHtml, "utf8");
-  await writeFile(outputPerksSourceHtmlPath, perksSourceHtml, "utf8");
-  await writeFile(outputPerksHtmlPath, perksHtml, "utf8");
+  const landingSourceHtml = buildLandingHtml(appVersion);
+  const landingHtml = await minify(landingSourceHtml, {
+    collapseWhitespace: true,
+    removeComments: true,
+    removeRedundantAttributes: true,
+    removeOptionalTags: false,
+    removeEmptyAttributes: true,
+    minifyCSS: true,
+    minifyJS: true,
+    useShortDoctype: true,
+    keepClosingSlash: true,
+  });
 
-  console.log(`Build complete: dist/index.source.html + dist/index.html + dist/perks/index.html (version ${appVersion})`);
+  await writeFile(outputGameSourceHtmlPath, composedHtml, "utf8");
+  await writeFile(outputGameHtmlPath, minifiedHtml, "utf8");
+  await writeFile(outputPerkLibrarySourceHtmlPath, perksSourceHtml, "utf8");
+  await writeFile(outputPerkLibraryHtmlPath, perksHtml, "utf8");
+  await writeFile(outputLandingHtmlPath, landingHtml, "utf8");
+
+  console.log(
+    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html (version ${appVersion})`
+  );
 }
 
 runBuild().catch((error) => {
