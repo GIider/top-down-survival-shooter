@@ -14,7 +14,7 @@ import { createDebugSystem } from "./systems/debugSystem.js";
 import { updateEnemies, updateEnemySpawning } from "./systems/enemySystem.js";
 import { updateEffects, updateFloatingTexts, updateSlashEffects } from "./systems/effectSystem.js";
 import { updateIndicators } from "./systems/indicatorSystem.js";
-import { applyPerk, getPerkChoices } from "./systems/perkSystem.js";
+import { applyPerk, allPerks, getPerkChoices } from "./systems/perkSystem.js";
 import { createPerkEngine } from "./systems/perks/perkEngine.js";
 import { updatePickups } from "./systems/pickups/index.js";
 import { applyPendingLevelUps, updatePlayerRuntime } from "./systems/playerRuntimeSystem.js";
@@ -77,6 +77,7 @@ function applyFreshState(freshState) {
   freshState.perkProgress = {
     seen: { ...gameState.perkProgress.seen },
     activated: { ...gameState.perkProgress.activated },
+    disabled: { ...gameState.perkProgress.disabled },
   };
   Object.assign(gameState, freshState);
 
@@ -135,6 +136,35 @@ function markPerkActivated(perkId) {
   gameState.perkProgress.activated[perkId] = true;
   gameState.perkProgress.seen[perkId] = true;
   persistPerkProgress();
+}
+
+function getDisabledPerkIds() {
+  return Object.keys(gameState.perkProgress.disabled).filter((id) => gameState.perkProgress.disabled[id]);
+}
+
+function togglePerkDisabled(perkId) {
+  if (!isDebugMode && !gameState.perkProgress.activated[perkId]) {
+    return;
+  }
+  gameState.perkProgress.disabled[perkId] = !gameState.perkProgress.disabled[perkId];
+  persistPerkProgress();
+}
+
+function bulkSetFilteredDisabled(filteredPerks, disabledValue) {
+  let changed = false;
+  for (let i = 0; i < filteredPerks.length; i += 1) {
+    const id = filteredPerks[i].id;
+    if (!isDebugMode && !gameState.perkProgress.activated[id]) {
+      continue;
+    }
+    if (!!gameState.perkProgress.disabled[id] !== disabledValue) {
+      gameState.perkProgress.disabled[id] = disabledValue;
+      changed = true;
+    }
+  }
+  if (changed) {
+    persistPerkProgress();
+  }
 }
 
 function recordRunResult() {
@@ -197,6 +227,29 @@ function handleTitleScreenClick() {
       return true;
     }
 
+    const toggledPerk = (gameState.titlePerkLibraryToggleRects || []).find(
+      (rect) => x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
+    );
+    if (toggledPerk) {
+      togglePerkDisabled(toggledPerk.perkId);
+      return true;
+    }
+
+    const filterTag = gameState.titlePerkLibraryFilter || "all";
+    const filteredForBulk = allPerks.filter((p) => filterTag === "all" || (p.tags || []).includes(filterTag));
+
+    const enableAllRect = gameState.titlePerkLibraryEnableAllRect;
+    if (enableAllRect && x >= enableAllRect.x && x <= enableAllRect.x + enableAllRect.width && y >= enableAllRect.y && y <= enableAllRect.y + enableAllRect.height) {
+      bulkSetFilteredDisabled(filteredForBulk, false);
+      return true;
+    }
+
+    const disableAllRect = gameState.titlePerkLibraryDisableAllRect;
+    if (disableAllRect && x >= disableAllRect.x && x <= disableAllRect.x + disableAllRect.width && y >= disableAllRect.y && y <= disableAllRect.y + disableAllRect.height) {
+      bulkSetFilteredDisabled(filteredForBulk, true);
+      return true;
+    }
+
     return true;
   }
 
@@ -242,7 +295,11 @@ function openPerkModal({ refreshChoices = false } = {}) {
   }
 
   if (refreshChoices || player.perkChoices.length === 0) {
-    player.perkChoices = getPerkChoices(player);
+    player.perkChoices = getPerkChoices(player, [], getDisabledPerkIds());
+    if (player.perkChoices.length === 0) {
+      player.perkPoints = Math.max(0, player.perkPoints - 1);
+      return;
+    }
     markPerksSeen(player.perkChoices);
     player.perkRerollAvailable = true;
     player.perkRerollAnimationTimer = 0;
@@ -272,7 +329,7 @@ function choosePerkByPointer() {
     const clickedReroll = x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
     if (clickedReroll) {
       const excludedIds = player.perkChoices.map((perk) => perk.id);
-      player.perkChoices = getPerkChoices(player, excludedIds);
+      player.perkChoices = getPerkChoices(player, excludedIds, getDisabledPerkIds());
       markPerksSeen(player.perkChoices);
       player.perkRerollAvailable = isDebugMode ? true : false;
       player.perkRerollAnimationTimer = 0.28;
@@ -299,7 +356,16 @@ function choosePerkByPointer() {
   player.perkPoints = Math.max(0, player.perkPoints - 1);
 
   if (player.perkPoints > 0) {
-    player.perkChoices = getPerkChoices(player);
+    player.perkChoices = getPerkChoices(player, [], getDisabledPerkIds());
+    if (player.perkChoices.length === 0) {
+      player.perkPoints = 0;
+      closePerkModal();
+      player.perkChoices = [];
+      player.perkRerollAvailable = false;
+      player.perkRerollAnimationTimer = 0;
+      player.perkRerollRect = null;
+      return true;
+    }
     markPerksSeen(player.perkChoices);
     player.perkRerollAvailable = true;
     player.perkRerollAnimationTimer = 0;

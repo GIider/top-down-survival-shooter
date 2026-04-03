@@ -11,13 +11,17 @@ const rootDir = path.resolve(__dirname, "..");
 
 const distDir = path.join(rootDir, "dist");
 const templateHtmlPath = path.join(rootDir, "src", "index.template.html");
+const showcaseTemplateHtmlPath = path.join(rootDir, "src", "showcase.template.html");
 const sourceCssPath = path.join(rootDir, "src", "style.css");
 const sourceJsEntryPath = path.join(rootDir, "src", "main.js");
+const showcaseJsEntryPath = path.join(rootDir, "src", "showcase", "main.js");
 const buildNumberPath = path.join(rootDir, "scripts", "build-number.json");
 const outputGameSourceHtmlPath = path.join(distDir, "game.source.html");
 const outputGameHtmlPath = path.join(distDir, "game.html");
 const outputPerkLibrarySourceHtmlPath = path.join(distDir, "perk-library.source.html");
 const outputPerkLibraryHtmlPath = path.join(distDir, "perk-library.html");
+const outputShowcaseSourceHtmlPath = path.join(distDir, "showcase.source.html");
+const outputShowcaseHtmlPath = path.join(distDir, "showcase.html");
 const outputLandingHtmlPath = path.join(distDir, "index.html");
 const legacyPerksDirPath = path.join(distDir, "perks");
 
@@ -256,6 +260,7 @@ function buildLandingHtml(appVersion) {
       <div class="links">
         <a href="./game.html">Play Game</a>
         <a href="./perk-library.html">Perk Library</a>
+        <a href="./showcase.html">Enemy Showcase</a>
         <a href="https://github.com/GIider/top-down-survival-shooter">GitHub Repository</a>
       </div>
       <div class="meta">Build version ${escapeHtml(appVersion)}</div>
@@ -293,8 +298,9 @@ async function runBuild() {
     buildNumber = await readAndBumpBuildNumber();
   }
   const appVersion = `0.${buildNumber}`;
-  const [templateHtml, cssContent] = await Promise.all([
+  const [templateHtml, showcaseTemplateHtml, cssContent] = await Promise.all([
     readFile(templateHtmlPath, "utf8"),
+    readFile(showcaseTemplateHtmlPath, "utf8"),
     readFile(sourceCssPath, "utf8"),
   ]);
 
@@ -310,6 +316,19 @@ async function runBuild() {
   });
 
   const jsBundle = jsBundleResult.outputFiles[0].text;
+
+  const showcaseJsBundleResult = await build({
+    entryPoints: [showcaseJsEntryPath],
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    legalComments: "none",
+    minify: false,
+  });
+
+  const showcaseJsBundle = showcaseJsBundleResult.outputFiles[0].text;
   const minifiedCssResult = await transform(cssContent, {
     loader: "css",
     minify: true,
@@ -321,7 +340,23 @@ async function runBuild() {
     .replace("__INLINE_CSS__", minifiedCssResult.code)
     .replace("<!-- __INLINE_SCRIPT__ -->", `  <script>\n${jsBundle}\n  </script>`);
 
+  const showcaseSourceHtml = showcaseTemplateHtml
+    .replace(/__APP_VERSION__/g, appVersion)
+    .replace("<!-- __INLINE_SCRIPT__ -->", `  <script>\n${showcaseJsBundle}\n  </script>`);
+
   const minifiedHtml = await minify(composedHtml, {
+    collapseWhitespace: true,
+    removeComments: true,
+    removeRedundantAttributes: true,
+    removeOptionalTags: false,
+    removeEmptyAttributes: true,
+    minifyCSS: true,
+    minifyJS: true,
+    useShortDoctype: true,
+    keepClosingSlash: true,
+  });
+
+  const showcaseHtml = await minify(showcaseSourceHtml, {
     collapseWhitespace: true,
     removeComments: true,
     removeRedundantAttributes: true,
@@ -366,10 +401,12 @@ async function runBuild() {
   await writeFile(outputGameHtmlPath, minifiedHtml, "utf8");
   await writeFile(outputPerkLibrarySourceHtmlPath, perksSourceHtml, "utf8");
   await writeFile(outputPerkLibraryHtmlPath, perksHtml, "utf8");
+  await writeFile(outputShowcaseSourceHtmlPath, showcaseSourceHtml, "utf8");
+  await writeFile(outputShowcaseHtmlPath, showcaseHtml, "utf8");
   await writeFile(outputLandingHtmlPath, landingHtml, "utf8");
 
   console.log(
-    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html (version ${appVersion})`
+    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html (version ${appVersion})`
   );
 }
 

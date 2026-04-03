@@ -115,6 +115,7 @@ export function createInitialState() {
     perkProgress: {
       seen: {},
       activated: {},
+      disabled: {},
     },
     titlePerkLibraryOpen: false,
     titlePerkLibraryFilter: "all",

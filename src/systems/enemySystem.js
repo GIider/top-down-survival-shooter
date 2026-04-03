@@ -7,6 +7,7 @@ import { updateChaserSlimeBehavior } from "./enemies/chaserSlime.js";
 import { updateMortarBehavior } from "./enemies/mortar.js";
 import { updateShooterBehavior } from "./enemies/shooter.js";
 import { updateShotgunShooterBehavior } from "./enemies/shotgunShooter.js";
+import { computeFlyingBomberPath, updateFlyingBomberBehavior } from "./enemies/flyingBomber.js";
 
 const SPAWN_CONFIG = GAME_CONFIG.enemies.spawn;
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
@@ -83,6 +84,74 @@ function ensureEnemyAiState(gameState) {
   return gameState.systems.enemyAi;
 }
 
+function resolveEnemyCrowding(gameState) {
+  const enemies = gameState.enemies;
+  if (!enemies || enemies.length < 2) {
+    return;
+  }
+
+  const world = gameState.systems.world;
+  const iterations = Math.max(1, AI_CONFIG.enemySeparationIterations || 1);
+  const strength = Math.max(0, Math.min(1.5, AI_CONFIG.enemySeparationStrength || 0.85));
+  const paddingFactor = Math.max(0.6, Math.min(1.2, AI_CONFIG.enemySeparationPaddingFactor || 0.94));
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    for (let i = 0; i < enemies.length; i += 1) {
+      const a = enemies[i];
+      if (!a || a.isRespawning || a.skipRecycle) {
+        continue;
+      }
+
+      for (let j = i + 1; j < enemies.length; j += 1) {
+        const b = enemies[j];
+        if (!b || b.isRespawning || b.skipRecycle) {
+          continue;
+        }
+
+        const minDistance = (a.radius + b.radius) * paddingFactor;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq >= minDistance * minDistance) {
+          continue;
+        }
+
+        let nx;
+        let ny;
+        let dist = Math.sqrt(distSq);
+        if (dist < 0.0001) {
+          const angleSeed = (((i + 1) * 73856093) ^ ((j + 1) * 19349663) ^ ((iteration + 1) * 83492791)) & 1023;
+          const angle = (angleSeed / 1024) * Math.PI * 2;
+          nx = Math.cos(angle);
+          ny = Math.sin(angle);
+          dist = 0;
+        } else {
+          nx = dx / dist;
+          ny = dy / dist;
+        }
+
+        const overlap = minDistance - dist;
+        if (overlap <= 0) {
+          continue;
+        }
+
+        const push = overlap * 0.5 * strength;
+        a.x -= nx * push;
+        a.y -= ny * push;
+        b.x += nx * push;
+        b.y += ny * push;
+
+        const resolvedA = resolvePositionAgainstMountains(world, a.x, a.y, a.radius);
+        a.x = resolvedA.x;
+        a.y = resolvedA.y;
+        const resolvedB = resolvePositionAgainstMountains(world, b.x, b.y, b.radius);
+        b.x = resolvedB.x;
+        b.y = resolvedB.y;
+      }
+    }
+  }
+}
+
 export function computeDifficulty(time) {
   return time * BALANCE.spawnScaling;
 }
@@ -128,10 +197,21 @@ export function updateEnemySpawning(gameState, dt, options = {}) {
       .map((entry) => ({ item: entry, weight: entry.weight }));
 
     const picked = weightedPick(candidates);
-    const enemy = createEnemy(picked.type, position.x, position.y, difficulty, picked.options || {});
-    const resolved = resolvePositionAgainstMountains(world, enemy.x, enemy.y, enemy.radius);
-    enemy.x = resolved.x;
-    enemy.y = resolved.y;
+    let spawnX = position.x;
+    let spawnY = position.y;
+    let spawnOptions = picked.options || {};
+    if (picked.type === "flyingBomber") {
+      const path = computeFlyingBomberPath(gameState.player, enemyAiState.playerVelocity);
+      spawnX = path.fromX;
+      spawnY = path.fromY;
+      spawnOptions = { ...spawnOptions, fromX: path.fromX, fromY: path.fromY, dirX: path.dirX, dirY: path.dirY, exitX: path.exitX, exitY: path.exitY };
+    }
+    const enemy = createEnemy(picked.type, spawnX, spawnY, difficulty, spawnOptions);
+    if (!enemy.skipRecycle) {
+      const resolved = resolvePositionAgainstMountains(world, enemy.x, enemy.y, enemy.radius);
+      enemy.x = resolved.x;
+      enemy.y = resolved.y;
+    }
     gameState.enemies.push(enemy);
   }
 }
@@ -165,6 +245,18 @@ export function updateEnemies(gameState, dt) {
       } else {
         enemy.offscreenTime = 0;
       }
+    }
+
+    if (enemy.skipRecycle) {
+      if (enemy.isDone) {
+        gameState.enemies.splice(index, 1);
+        continue;
+      }
+      if (enemy.type === "flyingBomber") {
+        updateFlyingBomberBehavior(gameState, enemy, player, dt);
+        continue;
+      }
+      continue;
     }
 
     const distanceToPlayer = Math.hypot(player.x - enemy.x, player.y - enemy.y);
@@ -221,4 +313,7 @@ export function updateEnemies(gameState, dt) {
       updateMortarBehavior(gameState, enemy, player, world, dt, speedMultiplier, reservedMortarTargets);
     }
   }
+
+  // Keep enemies from perfectly stacking into one pixel pile around the player.
+  resolveEnemyCrowding(gameState);
 }

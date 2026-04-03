@@ -1,17 +1,17 @@
 import { GAME_CONFIG } from "../constants.js";
 import { skillPerkCatalog } from "../../systems/perks/skillPerkCatalog.js";
 
-export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) {
+export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines, isDebugMode = false) {
   const ui = GAME_CONFIG.ui.perkLibrary;
   const totalPerks = skillPerkCatalog.length;
   let seenCount = 0;
   let acquiredCount = 0;
   for (let i = 0; i < skillPerkCatalog.length; i += 1) {
     const perk = skillPerkCatalog[i];
-    if (gameState.perkProgress.seen[perk.id]) {
+    if (isDebugMode || gameState.perkProgress.seen[perk.id]) {
       seenCount += 1;
     }
-    if (gameState.perkProgress.activated[perk.id]) {
+    if (isDebugMode || gameState.perkProgress.activated[perk.id]) {
       acquiredCount += 1;
     }
   }
@@ -108,6 +108,49 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) 
   ctx.textAlign = "right";
   ctx.fillText(gameState.titlePerkLibraryFilterDropdownOpen ? "▲" : "▼", filterRect.x + filterRect.width - 10, filterRect.y + filterRect.height * 0.5 + 1);
 
+  const bulkBtnWidth = 88;
+  const bulkBtnHeight = filterRect.height;
+  const bulkBtnGap = 6;
+  const enableAllRect = {
+    x: filterRect.x + filterRect.width + bulkBtnGap,
+    y: filterRect.y,
+    width: bulkBtnWidth,
+    height: bulkBtnHeight,
+  };
+  const disableAllRect = {
+    x: enableAllRect.x + bulkBtnWidth + bulkBtnGap,
+    y: filterRect.y,
+    width: bulkBtnWidth,
+    height: bulkBtnHeight,
+  };
+  gameState.titlePerkLibraryEnableAllRect = enableAllRect;
+  gameState.titlePerkLibraryDisableAllRect = disableAllRect;
+
+  ctx.fillStyle = "rgba(20, 50, 32, 0.92)";
+  ctx.fillRect(enableAllRect.x, enableAllRect.y, enableAllRect.width, enableAllRect.height);
+  ctx.strokeStyle = "rgba(80, 200, 110, 0.72)";
+  ctx.lineWidth = 1.3;
+  ctx.strokeRect(enableAllRect.x, enableAllRect.y, enableAllRect.width, enableAllRect.height);
+  ctx.fillStyle = "#a8ffcc";
+  ctx.font = "bold 11px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Enable All", enableAllRect.x + enableAllRect.width * 0.5, enableAllRect.y + enableAllRect.height * 0.5 + 1);
+
+  ctx.fillStyle = "rgba(50, 18, 18, 0.92)";
+  ctx.fillRect(disableAllRect.x, disableAllRect.y, disableAllRect.width, disableAllRect.height);
+  ctx.strokeStyle = "rgba(200, 70, 70, 0.72)";
+  ctx.lineWidth = 1.3;
+  ctx.strokeRect(disableAllRect.x, disableAllRect.y, disableAllRect.width, disableAllRect.height);
+  ctx.fillStyle = "#ffb0b0";
+  ctx.font = "bold 11px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Disable All", disableAllRect.x + disableAllRect.width * 0.5, disableAllRect.y + disableAllRect.height * 0.5 + 1);
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
   gameState.titlePerkLibraryFilterRects = [];
   const optionHeight = ui.filter.optionHeight;
   const optionWidth = filterRect.width;
@@ -145,6 +188,8 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) 
     height: viewHeight,
   };
 
+  gameState.titlePerkLibraryToggleRects = [];
+
   ctx.save();
   ctx.beginPath();
   ctx.rect(modalX + 16, cardsTop, modalWidth - 32, viewHeight);
@@ -156,12 +201,13 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) 
     if (cardY + cardHeight < cardsTop || cardY > cardsBottom) {
       continue;
     }
-    const seen = !!gameState.perkProgress.seen[perk.id];
-    const activated = !!gameState.perkProgress.activated[perk.id];
+    const seen = isDebugMode || !!gameState.perkProgress.seen[perk.id];
+    const activated = isDebugMode || !!gameState.perkProgress.activated[perk.id];
+    const perkDisabled = activated && !!gameState.perkProgress.disabled[perk.id];
 
-    ctx.fillStyle = activated ? "rgba(38, 77, 99, 0.9)" : seen ? "rgba(28, 52, 68, 0.9)" : "rgba(44, 44, 50, 0.9)";
+    ctx.fillStyle = perkDisabled ? "rgba(52, 38, 38, 0.9)" : activated ? "rgba(38, 77, 99, 0.9)" : seen ? "rgba(28, 52, 68, 0.9)" : "rgba(44, 44, 50, 0.9)";
     ctx.fillRect(modalX + 20, cardY, modalWidth - 40, cardHeight);
-    ctx.strokeStyle = activated ? "rgba(145, 231, 255, 0.92)" : seen ? "rgba(112, 178, 204, 0.72)" : "rgba(112, 112, 124, 0.62)";
+    ctx.strokeStyle = perkDisabled ? "rgba(180, 100, 100, 0.72)" : activated ? "rgba(145, 231, 255, 0.92)" : seen ? "rgba(112, 178, 204, 0.72)" : "rgba(112, 112, 124, 0.62)";
     ctx.lineWidth = 1.5;
     ctx.strokeRect(modalX + 20, cardY, modalWidth - 40, cardHeight);
 
@@ -194,6 +240,25 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) 
       if (lines.length > 0) {
         ctx.fillText(lines[0], modalX + 34, cardY + 50);
       }
+
+      const btnWidth = 80;
+      const btnHeight = 22;
+      const btnX = modalX + modalWidth - 20 - 10 - btnWidth;
+      const btnY = cardY + Math.round((cardHeight - btnHeight) / 2);
+      gameState.titlePerkLibraryToggleRects.push({ x: btnX, y: btnY, width: btnWidth, height: btnHeight, perkId: perk.id });
+
+      ctx.fillStyle = perkDisabled ? "rgba(80, 22, 22, 0.92)" : "rgba(22, 68, 38, 0.92)";
+      ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
+      ctx.strokeStyle = perkDisabled ? "rgba(220, 80, 80, 0.9)" : "rgba(80, 210, 120, 0.9)";
+      ctx.lineWidth = 1.3;
+      ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+      ctx.fillStyle = perkDisabled ? "#ffb0b0" : "#a8ffcc";
+      ctx.font = "bold 11px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(perkDisabled ? "Disabled" : "Enabled", btnX + btnWidth * 0.5, btnY + btnHeight * 0.5 + 1);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
     }
   }
 

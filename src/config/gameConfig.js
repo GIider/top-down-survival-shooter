@@ -380,6 +380,7 @@ export const GAME_CONFIG = {
         { type: "shotgunShooter", weight: 11, minStage: 1 },
         { type: "bomber", weight: 12, minStage: 1 },
         { type: "mortar", weight: 8, minStage: 1 },
+        { type: "flyingBomber", weight: 7, minStage: 1 },
       ],
     },
     ai: {
@@ -391,6 +392,9 @@ export const GAME_CONFIG = {
       bomberSlowFactorWhenPrimed: 0.45,
       spawnBoostMultiplier: 1.45,
       spawnBoostTime: { min: 2, max: 3 },
+      enemySeparationIterations: 2,
+      enemySeparationStrength: 0.85,
+      enemySeparationPaddingFactor: 0.94,
     },
     archetypes: {
       chaser: {
@@ -485,6 +489,20 @@ export const GAME_CONFIG = {
             { radiusFactor: 0.52, duration: 0.45, growth: 14, color: "255, 190, 162" },
           ],
         },
+      },
+      flyingBomber: {
+        hpBase: 32,
+        hpDifficultyScale: 3,
+        radius: 11,
+        color: "#ff2244",
+        flySpeed: 840,
+        warningDuration: 1.2,
+        bombInterval: 120,
+        bombRadius: 72,
+        bombDamage: 22,
+        bombTelegraphDuration: 0.38,
+        contactDamage: 20,
+        xp: 28,
       },
       slime: {
         maxTier: 3,

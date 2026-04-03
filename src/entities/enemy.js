@@ -27,6 +27,10 @@ function getPickupDropMultiplier(type, options = {}) {
     return 0.95;
   }
 
+  if (type === "flyingBomber") {
+    return 1.1;
+  }
+
   if (type === "mortar") {
     return 1.3;
   }
@@ -42,6 +46,7 @@ export function createEnemy(type, x, y, difficulty, options = {}) {
   const mortarHp = enemyConfig.mortar.hpBase + difficulty * enemyConfig.mortar.hpDifficultyScale;
   const bomberHp = enemyConfig.bomber.hpBase + difficulty * enemyConfig.bomber.hpDifficultyScale;
   const chaserHp = enemyConfig.chaser.hpBase + difficulty * enemyConfig.chaser.hpDifficultyScale;
+  const flyingBomberHp = enemyConfig.flyingBomber.hpBase + difficulty * enemyConfig.flyingBomber.hpDifficultyScale;
 
   const recycleState = {
     isRespawning: false,
@@ -200,6 +205,37 @@ export function createEnemy(type, x, y, difficulty, options = {}) {
       fuseTimer: 0,
       isPrimed: false,
       xp: enemyConfig.bomber.xp,
+      ...recycleState,
+    };
+  }
+
+  if (type === "flyingBomber") {
+    const flyConfig = enemyConfig.flyingBomber;
+    return {
+      type,
+      x: options.fromX !== undefined ? options.fromX : x,
+      y: options.fromY !== undefined ? options.fromY : y,
+      vx: 0,
+      vy: 0,
+      hp: flyingBomberHp,
+      maxHp: flyingBomberHp,
+      radius: flyConfig.radius,
+      color: flyConfig.color,
+      contactDamage: flyConfig.contactDamage,
+      xp: flyConfig.xp,
+      flyDirX: options.dirX || 0,
+      flyDirY: options.dirY || 1,
+      flyFromX: options.fromX !== undefined ? options.fromX : x,
+      flyFromY: options.fromY !== undefined ? options.fromY : y,
+      flyExitX: options.exitX !== undefined ? options.exitX : x,
+      flyExitY: options.exitY !== undefined ? options.exitY : y,
+      flyPhase: "warning",
+      warningTimer: flyConfig.warningDuration,
+      warningDuration: flyConfig.warningDuration,
+      distTraveled: 0,
+      bombDistAccum: 0,
+      isDone: false,
+      skipRecycle: true,
       ...recycleState,
     };
   }

@@ -1,15 +1,25 @@
 import { GAME_CONFIG } from "../core/constants.js";
 import { createEnemy } from "../entities/enemy.js";
 import { PICKUP_POOL } from "./pickups/pickupCatalog.js";
+import { computeFlyingBomberPath } from "./enemies/flyingBomber.js";
 
 function spawnDebugEnemy(services, type) {
   const gameState = services.gameState;
   const canvas = services.canvas;
+  const difficulty = gameState.time * 0.02;
+  if (type === "flyingBomber") {
+    const aiState = gameState.systems?.enemyAi;
+    const vel = aiState ? aiState.playerVelocity : { x: 0, y: 0 };
+    const path = computeFlyingBomberPath(gameState.player, vel);
+    gameState.enemies.push(createEnemy("flyingBomber", path.fromX, path.fromY, difficulty, {
+      fromX: path.fromX, fromY: path.fromY, dirX: path.dirX, dirY: path.dirY, exitX: path.exitX, exitY: path.exitY,
+    }));
+    return;
+  }
   const angle = Math.random() * Math.PI * 2;
   const distance = Math.max(canvas.width, canvas.height) * 0.42;
   const x = gameState.player.x + Math.cos(angle) * distance;
   const y = gameState.player.y + Math.sin(angle) * distance;
-  const difficulty = gameState.time * 0.02;
   gameState.enemies.push(createEnemy(type, x, y, difficulty));
 }
 

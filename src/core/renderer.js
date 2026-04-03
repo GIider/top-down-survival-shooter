@@ -219,7 +219,7 @@ export function createRenderer(canvas, gameState) {
   }
 
   function drawPerkLibraryOverlay() {
-    renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines);
+    renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines, IS_DEBUG_MODE);
   }
 
   function drawPauseOverlay() {
@@ -368,6 +368,108 @@ export function createRenderer(canvas, gameState) {
       }
     }
 
+    function renderFlyingBomber(enemy) {
+      if (enemy.flyPhase === "warning") {
+        const fromX = enemy.flyFromX;
+        const fromY = enemy.flyFromY;
+        const exitX = enemy.flyExitX;
+        const exitY = enemy.flyExitY;
+        const warningProgress = 1 - Math.max(0, enemy.warningTimer / (enemy.warningDuration || 1.9));
+        const dx = exitX - fromX;
+        const dy = exitY - fromY;
+        const pathLen = Math.hypot(dx, dy) || 1;
+        const dirX = dx / pathLen;
+        const dirY = dy / pathLen;
+        const perpX = -dirY;
+        const perpY = dirX;
+
+        ctx.save();
+        ctx.globalAlpha = 0.28 + warningProgress * 0.14;
+        ctx.strokeStyle = "#ff3355";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([12, 9]);
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(exitX, exitY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        const arrowSpacing = 160;
+        const scrollSpeed = 220;
+        const animOffset = (gameState.time * scrollSpeed) % arrowSpacing;
+        const arrowCount = Math.ceil(pathLen / arrowSpacing) + 2;
+
+        for (let i = 0; i < arrowCount; i += 1) {
+          const dist = animOffset + i * arrowSpacing;
+          if (dist > pathLen) {
+            break;
+          }
+          const ax = fromX + dirX * dist;
+          const ay = fromY + dirY * dist;
+          const arrowSize = 13;
+          ctx.save();
+          ctx.globalAlpha = (0.55 + 0.4 * Math.sin(gameState.time * 10 - i * 1.2)) * (0.5 + warningProgress * 0.5);
+          ctx.fillStyle = "rgba(255, 50, 80, 0.82)";
+          ctx.strokeStyle = "#ff4466";
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(ax + dirX * arrowSize, ay + dirY * arrowSize);
+          ctx.lineTo(ax - dirX * arrowSize + perpX * arrowSize * 0.65, ay - dirY * arrowSize + perpY * arrowSize * 0.65);
+          ctx.lineTo(ax - dirX * arrowSize * 0.35, ay - dirY * arrowSize * 0.35);
+          ctx.lineTo(ax - dirX * arrowSize - perpX * arrowSize * 0.65, ay - dirY * arrowSize - perpY * arrowSize * 0.65);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        const pulse = 0.4 + 0.6 * Math.sin(gameState.time * 9);
+        ctx.strokeStyle = `rgba(255, 60, 90, ${0.4 + pulse * 0.55})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, enemy.radius + 4 + pulse * 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = enemy.color;
+      ctx.beginPath();
+      ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (enemy.flyPhase === "flying") {
+        const trailLen = 26;
+        const tx = -enemy.flyDirX * trailLen;
+        const ty = -enemy.flyDirY * trailLen;
+        const perpX = -enemy.flyDirY;
+        const perpY = enemy.flyDirX;
+        const wingSpan = enemy.radius * 1.4;
+        ctx.save();
+        ctx.globalAlpha = 0.65;
+        ctx.fillStyle = "#ff8899";
+        ctx.beginPath();
+        ctx.moveTo(enemy.x, enemy.y);
+        ctx.lineTo(enemy.x + perpX * wingSpan + tx * 0.6, enemy.y + perpY * wingSpan + ty * 0.6);
+        ctx.lineTo(enemy.x + tx, enemy.y + ty);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(enemy.x, enemy.y);
+        ctx.lineTo(enemy.x - perpX * wingSpan + tx * 0.6, enemy.y - perpY * wingSpan + ty * 0.6);
+        ctx.lineTo(enemy.x + tx, enemy.y + ty);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (enemy.maxHp > 0 && enemy.hp > 0 && enemy.hp < enemy.maxHp) {
+        const barWidth = Math.max(22, enemy.radius * 2.2);
+        const barX = enemy.x - barWidth * 0.5;
+        const barY = enemy.y - enemy.radius - 10;
+        drawBar(ctx, barX, barY, barWidth, 4, enemy.hp, enemy.maxHp, "#ff8899", "rgba(0,0,0,0.45)");
+      }
+    }
+
     gameState.enemies.forEach((enemy) => {
       if (enemy.isRespawning) {
         return;
@@ -381,6 +483,11 @@ export function createRenderer(canvas, gameState) {
         ctx.beginPath();
         ctx.arc(enemy.x, enemy.y, radius, 0, Math.PI * 2);
         ctx.stroke();
+      }
+
+      if (enemy.type === "flyingBomber") {
+        renderFlyingBomber(enemy);
+        return;
       }
 
       ctx.fillStyle = enemy.color;
@@ -805,6 +912,11 @@ export function createRenderer(canvas, gameState) {
         return;
       }
 
+      // Flying bombers show their path warning instead of an offscreen arrow
+      if (enemy.type === "flyingBomber" && enemy.flyPhase === "warning") {
+        return;
+      }
+
       const sx = enemy.x - camera.x;
       const sy = enemy.y - camera.y;
       if (sx >= edgePadding && sx <= canvas.width - edgePadding && sy >= edgePadding && sy <= canvas.height - edgePadding) {
@@ -818,16 +930,18 @@ export function createRenderer(canvas, gameState) {
       const iy = centerY + dy * inv;
       const angle = Math.atan2(dy, dx);
 
-      const size = enemy.type === "mortar" ? 10 : enemy.type === "bomber" ? 9 : 8;
+      const size = enemy.type === "mortar" ? 10 : (enemy.type === "bomber" || enemy.type === "flyingBomber") ? 9 : 8;
       ctx.save();
       ctx.translate(ix, iy);
       ctx.rotate(angle);
       ctx.fillStyle =
         enemy.type === "mortar"
           ? "rgba(255, 178, 122, 0.95)"
-          : enemy.type === "bomber"
-            ? "rgba(255, 106, 138, 0.95)"
-            : "rgba(255, 126, 126, 0.9)";
+          : enemy.type === "flyingBomber"
+            ? "rgba(255, 34, 68, 0.95)"
+            : enemy.type === "bomber"
+              ? "rgba(255, 106, 138, 0.95)"
+              : "rgba(255, 126, 126, 0.9)";
       ctx.beginPath();
       ctx.moveTo(size + 3, 0);
       ctx.lineTo(-size, -size * 0.7);

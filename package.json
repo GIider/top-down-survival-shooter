@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test:regression": "node tests/regression/perkEngine.regression.mjs"
+    "test:regression:perkEngine": "node tests/regression/perkEngine.regression.mjs",
+    "test:regression:showcase": "node tests/regression/showcase.regression.mjs",
+    "test:regression": "npm run test:regression:perkEngine && npm run test:regression:showcase"
   },
   "devDependencies": {
     "esbuild": "^0.25.4",

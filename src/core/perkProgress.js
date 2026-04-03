@@ -16,22 +16,23 @@ function sanitizeMap(value) {
 
 export function loadPerkProgress(storage = globalThis.localStorage) {
   if (!storage) {
-    return { seen: {}, activated: {} };
+    return { seen: {}, activated: {}, disabled: {} };
   }
 
   try {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) {
-      return { seen: {}, activated: {} };
+      return { seen: {}, activated: {}, disabled: {} };
     }
 
     const parsed = JSON.parse(raw);
     return {
       seen: sanitizeMap(parsed?.seen),
       activated: sanitizeMap(parsed?.activated),
+      disabled: sanitizeMap(parsed?.disabled),
     };
   } catch {
-    return { seen: {}, activated: {} };
+    return { seen: {}, activated: {}, disabled: {} };
   }
 }
 
@@ -44,6 +45,7 @@ export function savePerkProgress(progress, storage = globalThis.localStorage) {
     const payload = {
       seen: sanitizeMap(progress?.seen),
       activated: sanitizeMap(progress?.activated),
+      disabled: sanitizeMap(progress?.disabled),
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
