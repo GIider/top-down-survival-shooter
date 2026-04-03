@@ -12,6 +12,7 @@ export function createHud(documentRef, options = {}) {
   const weaponSlotMelee = documentRef.getElementById("weapon-slot-melee");
   const weaponSlotGun = documentRef.getElementById("weapon-slot-gun");
   const weaponSlotBow = documentRef.getElementById("weapon-slot-bow");
+  const weaponSlotFlail = documentRef.getElementById("weapon-slot-flail");
   const directorPoints = documentRef.getElementById("director-points");
   const directorRegen = documentRef.getElementById("director-regen");
   const directorStage = documentRef.getElementById("director-stage");
@@ -49,6 +50,9 @@ export function createHud(documentRef, options = {}) {
       if (statAmmo) {
         if (weaponSystem.isMeleeSelected()) {
           statAmmo.textContent = "Ammo: -- (Melee)";
+        } else if (weaponSystem.isFlailSelected && weaponSystem.isFlailSelected()) {
+          const speed = weaponSystem.flailHeadSpeed || 0;
+          statAmmo.textContent = `Ammo: -- (Flail) | Speed: ${Math.round(speed)}`;
         } else if (weaponSystem.isBowSelected()) {
           const chargePct = Math.round(weaponSystem.getBowChargeProgress() * 100);
           statAmmo.textContent = `Ammo: 1 (Bow) | Charge: ${chargePct}%`;
@@ -120,10 +124,11 @@ export function createHud(documentRef, options = {}) {
         }
       }
 
-      if (weaponSlotMelee && weaponSlotGun && weaponSlotBow) {
+      if (weaponSlotMelee && weaponSlotGun && weaponSlotBow && weaponSlotFlail) {
         weaponSlotMelee.classList.toggle("active", weaponSystem.isMeleeSelected());
         weaponSlotGun.classList.toggle("active", weaponSystem.isGunSelected());
         weaponSlotBow.classList.toggle("active", weaponSystem.isBowSelected());
+        weaponSlotFlail.classList.toggle("active", weaponSystem.isFlailSelected && weaponSystem.isFlailSelected());
       }
 
       if (isDebugMode && directorPoints && directorRegen && directorStage && directorLog) {

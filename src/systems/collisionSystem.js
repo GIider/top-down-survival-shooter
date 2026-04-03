@@ -2,7 +2,7 @@ import { BALANCE, GAME_CONFIG } from "../core/constants.js";
 import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../entities/player.js";
 import { createEnemy } from "../entities/enemy.js";
 import { maybeSpawnPickupOnEnemyDeath } from "./pickups/index.js";
-import { getTreeEffectsAt, igniteTreesAt } from "./worldSystem.js";
+import { getTreeEffectsAt, igniteTreesAt, resolvePositionAgainstMountains } from "./worldSystem.js";
 import { createDamageContext, PERK_HOOKS } from "./perks/contracts.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
@@ -105,6 +105,39 @@ function reflectProjectile(projectile, nx, ny, speedMultiplier = 1) {
   projectile.velocity.y -= 2 * velocityDot * ny;
   projectile.velocity.x *= speedMultiplier;
   projectile.velocity.y *= speedMultiplier;
+}
+
+function getClosestPointOnSegment(px, py, ax, ay, bx, by) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const abLenSq = abx * abx + aby * aby;
+  if (abLenSq <= 0.000001) {
+    return { x: ax, y: ay, t: 0 };
+  }
+  const apx = px - ax;
+  const apy = py - ay;
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / abLenSq));
+  return {
+    x: ax + abx * t,
+    y: ay + aby * t,
+    t,
+  };
+}
+
+function applyEnemyKnockback(enemy, nx, ny, knockbackPerSecond, dt, world) {
+  if (!Number.isFinite(nx) || !Number.isFinite(ny)) {
+    return;
+  }
+  const pushDistance = Math.max(0, knockbackPerSecond) * dt;
+  if (pushDistance <= 0) {
+    return;
+  }
+
+  enemy.x += nx * pushDistance;
+  enemy.y += ny * pushDistance;
+  const resolved = resolvePositionAgainstMountains(world, enemy.x, enemy.y, enemy.radius);
+  enemy.x = resolved.x;
+  enemy.y = resolved.y;
 }
 
 function normalizeDamageSource(damageSource = {}) {
@@ -256,7 +289,7 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
   gameState.screenFx.actionFlash = Math.min(1, gameState.screenFx.actionFlash + 0.08);
   gameState.enemies.splice(enemyIndex, 1);
   gameState.runStats.kills += 1;
-  maybeSpawnPickupOnEnemyDeath(gameState, enemy, gameState.time * BALANCE.spawnScaling, weaponSystem);
+  maybeSpawnPickupOnEnemyDeath(gameState, enemy, gameState.time * BALANCE.spawnScaling, weaponSystem, normalizedDamageSource);
   player.xp += enemy.xp;
 }
 
@@ -456,6 +489,178 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             const maxHp = player.maxHp + player.maxHpBonus;
             player.hp = Math.min(maxHp, player.hp + swingDamage * player.lifeSteal * 0.08);
           }
+        }
+      }
+    }
+  }
+
+  if (weapon && weapon.isFlailSelected && weapon.isFlailSelected() && typeof weapon.getFlailSnapshot === "function") {
+    const flail = weapon.getFlailSnapshot(player);
+    if (flail) {
+      for (let e = gameState.enemies.length - 1; e >= 0; e -= 1) {
+        const enemy = gameState.enemies[e];
+        if (enemy.isRespawning) {
+          continue;
+        }
+
+        let registeredHit = false;
+        const headDx = enemy.x - flail.x;
+        const headDy = enemy.y - flail.y;
+        const headDistance = Math.hypot(headDx, headDy) || 0.0001;
+        const headOverlap = headDistance <= enemy.radius + flail.radius;
+
+        if (headOverlap && weapon.canFlailHitEnemy(enemy, "head")) {
+          const impactSpeed = flail.speed;
+          const impactRatio = weapon.getFlailImpactRatio(impactSpeed);
+          const baseDamage = weapon.getFlailHeadDamage(player, impactSpeed);
+          const hitDamage = computeDamageWithPerks(gameState, player, enemy, baseDamage, {
+            sourceType: "flailHead",
+            tags: ["melee", "flail", "impact"],
+          });
+
+          enemy.hp -= hitDamage;
+          emitEnemyHitWithPerks(gameState, player, enemy, hitDamage, {
+            sourceType: "flailHead",
+            tags: ["melee", "flail", "impact"],
+          });
+
+          const knockback = weapon.getFlailKnockback(impactSpeed, 1);
+          const velLen = Math.hypot(flail.velocity.x, flail.velocity.y);
+          const nx = velLen > 0.001 ? flail.velocity.x / velLen : headDx / headDistance;
+          const ny = velLen > 0.001 ? flail.velocity.y / velLen : headDy / headDistance;
+          applyEnemyKnockback(enemy, nx, ny, knockback, dt, world);
+
+          weapon.markFlailEnemyHit(enemy, "head");
+          weapon.applyFlailImpactResponse(impactRatio);
+
+          gameState.effects.push({
+            x: enemy.x,
+            y: enemy.y,
+            radius: Math.max(10, enemy.radius * 0.65),
+            elapsed: 0,
+            duration: 0.2,
+            growth: 26,
+            color: "255, 209, 132",
+          });
+          for (let spark = 0; spark < 5; spark += 1) {
+            const angle = Math.atan2(ny, nx) + (Math.random() * 2 - 1) * 0.8;
+            const speed = 120 + Math.random() * 120;
+            gameState.effects.push({
+              kind: "particle",
+              x: enemy.x,
+              y: enemy.y,
+              radius: 2 + Math.random() * 2,
+              elapsed: 0,
+              duration: 0.15,
+              growth: -6,
+              color: "255, 232, 166",
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              damping: 0.9,
+            });
+          }
+
+          spawnFloatingText(
+            gameState,
+            `-${Math.max(1, Math.round(hitDamage))}`,
+            enemy.x,
+            enemy.y - enemy.radius - 4,
+            "255,214,168",
+            22,
+            "damage"
+          );
+          gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 1.3 + impactRatio * 0.9);
+          gameState.screenFx.actionFlash = Math.min(1, gameState.screenFx.actionFlash + 0.07 + impactRatio * 0.05);
+          gameState.screenFx.hitStop = Math.max(gameState.screenFx.hitStop || 0, 0.02 + impactRatio * 0.015);
+          registeredHit = true;
+
+          if (enemy.hp <= 0) {
+            killEnemy(gameState, enemy, e, { sourceType: "flailHead", tags: ["melee", "flail", "impact"] }, player);
+            if (player.lifeSteal > 0) {
+              const maxHp = player.maxHp + player.maxHpBonus;
+              player.hp = Math.min(maxHp, player.hp + hitDamage * player.lifeSteal * 0.08);
+            }
+            continue;
+          }
+        }
+
+        if (registeredHit || !weapon.canFlailHitEnemy(enemy, "chain")) {
+          continue;
+        }
+
+        let bestContact = null;
+        const chainRadius = enemy.radius + (flail.chainHitRadius || 0);
+        const chainRadiusSq = chainRadius * chainRadius;
+
+        for (let i = 0; i < flail.chainPoints.length - 1; i += 1) {
+          const from = flail.chainPoints[i];
+          const to = flail.chainPoints[i + 1];
+          const closest = getClosestPointOnSegment(enemy.x, enemy.y, from.x, from.y, to.x, to.y);
+          const dx = enemy.x - closest.x;
+          const dy = enemy.y - closest.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq > chainRadiusSq) {
+            continue;
+          }
+
+          if (!bestContact || distSq < bestContact.distSq) {
+            bestContact = { dx, dy, distSq, x: closest.x, y: closest.y };
+          }
+        }
+
+        if (!bestContact) {
+          continue;
+        }
+
+        const chainImpactSpeed = flail.speed * 0.62;
+        const impactRatio = weapon.getFlailImpactRatio(chainImpactSpeed);
+        const baseChainDamage = weapon.getFlailChainDamage(player, flail.speed);
+        const chainDamage = computeDamageWithPerks(gameState, player, enemy, baseChainDamage, {
+          sourceType: "flailChain",
+          tags: ["melee", "flail", "chain"],
+        });
+
+        enemy.hp -= chainDamage;
+        emitEnemyHitWithPerks(gameState, player, enemy, chainDamage, {
+          sourceType: "flailChain",
+          tags: ["melee", "flail", "chain"],
+        });
+
+        const dist = Math.sqrt(bestContact.distSq) || 0.0001;
+        const nx = bestContact.dx / dist;
+        const ny = bestContact.dy / dist;
+        const chainKnockback = weapon.getFlailKnockback(chainImpactSpeed, 0.58);
+        applyEnemyKnockback(enemy, nx, ny, chainKnockback, dt, world);
+
+        weapon.markFlailEnemyHit(enemy, "chain");
+        weapon.applyFlailImpactResponse(impactRatio * 0.45);
+
+        gameState.effects.push({
+          kind: "particle",
+          x: bestContact.x,
+          y: bestContact.y,
+          radius: 2,
+          elapsed: 0,
+          duration: 0.14,
+          growth: 8,
+          color: "192, 247, 255",
+          vx: nx * 90,
+          vy: ny * 90,
+          damping: 0.86,
+        });
+        spawnFloatingText(
+          gameState,
+          `-${Math.max(1, Math.round(chainDamage))}`,
+          enemy.x,
+          enemy.y - enemy.radius - 4,
+          "206,239,255",
+          17,
+          "damage"
+        );
+
+        if (enemy.hp <= 0) {
+          killEnemy(gameState, enemy, e, { sourceType: "flailChain", tags: ["melee", "flail", "chain"] }, player);
+          continue;
         }
       }
     }

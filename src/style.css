@@ -150,18 +150,18 @@ h1 {
 .weapon-switch {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .weapon-slot {
   border: 1px solid rgba(149, 203, 224, 0.34);
   border-radius: 10px;
   background: rgba(8, 19, 33, 0.66);
-  padding: 8px 10px;
+  padding: 6px 7px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   color: #8fb5ca;
   transition: border-color 100ms linear, background 100ms linear, color 100ms linear;
 }
@@ -173,13 +173,13 @@ h1 {
 }
 
 .weapon-key {
-  min-width: 22px;
-  height: 22px;
+  min-width: 18px;
+  height: 18px;
   border-radius: 6px;
   border: 1px solid rgba(178, 226, 247, 0.45);
   display: inline-grid;
   place-items: center;
-  font-size: 12px;
+  font-size: 11px;
   background: rgba(9, 18, 27, 0.8);
   color: #d4f3ff;
 }
@@ -191,7 +191,7 @@ h1 {
 
 .weapon-name {
   letter-spacing: 0.03em;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .skill-indicator {

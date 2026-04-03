@@ -62,6 +62,8 @@ export function createInput(canvas) {
         weaponSlotPressed = 2;
       } else if (code === "Digit3" || key === "3") {
         weaponSlotPressed = 3;
+      } else if (code === "Digit4" || key === "4") {
+        weaponSlotPressed = 4;
       }
     }
   });

@@ -537,7 +537,7 @@ function update(dt) {
   const releasedClick = input.consumePointerRelease();
   const weaponSlot = input.consumeWeaponSlotPress();
 
-  if (weaponSlot === 1 || weaponSlot === 2 || weaponSlot === 3) {
+  if (weaponSlot === 1 || weaponSlot === 2 || weaponSlot === 3 || weaponSlot === 4) {
     weaponSystem.switchWeapon(weaponSlot);
   }
 
@@ -594,7 +594,7 @@ function update(dt) {
     weaponSystem.tryFire(gameState.player, worldPointer, gameState.projectiles, perkEngine);
   }
 
-  weaponSystem.update(dt, gameState.player);
+  weaponSystem.update(dt, gameState.player, worldPointer);
 
   updateProjectiles(services, dt);
   updateFireballs(services, dt);

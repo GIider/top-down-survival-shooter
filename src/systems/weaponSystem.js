@@ -13,6 +13,7 @@ import { createDefaultShotPlan, PERK_HOOKS } from "./perks/contracts.js";
 const GUN_CONFIG = getGunConfig();
 const BOW_CONFIG = getBowConfig();
 const MELEE_CONFIG = getMeleeConfig();
+const FLAIL_CONFIG = GAME_CONFIG.weapons.flail;
 
 export class Weapon {
   constructor(config) {
@@ -56,6 +57,18 @@ export class Weapon {
     this.bowMaxDamage = BOW_CONFIG.maxDamage;
     this.bowMinSpeed = BOW_CONFIG.minSpeed;
     this.bowMaxSpeed = BOW_CONFIG.maxSpeed;
+
+    this.flailInitialized = false;
+    this.flailHeadX = 0;
+    this.flailHeadY = 0;
+    this.flailVelX = 0;
+    this.flailVelY = 0;
+    this.flailHeadSpeed = 0;
+    this.flailTrail = [];
+    this.flailTrailTimer = 0;
+    this.flailImpactPulse = 0;
+    this.flailHeadHitCooldowns = new Map();
+    this.flailChainHitCooldowns = new Map();
   }
 
   static scaleWindow(windowRange, multiplier) {
@@ -77,20 +90,218 @@ export class Weapon {
     return this.selectedSlot === 3;
   }
 
+  isFlailSelected() {
+    return this.selectedSlot === 4;
+  }
+
   switchWeapon(slot) {
-    if (slot !== 1 && slot !== 2 && slot !== 3) {
+    if (slot !== 1 && slot !== 2 && slot !== 3 && slot !== 4) {
       return;
     }
 
     this.selectedSlot = slot;
     this.bowCharging = false;
     this.bowChargeProgress = 0;
-    if (slot === 1 || slot === 3) {
+    if (slot === 1 || slot === 3 || slot === 4) {
       this.isReloading = false;
       this.reloadProgress = 0;
       this.reloadFailed = false;
       this.reloadAttemptUsed = false;
       this.state = "ready";
+    }
+  }
+
+  initializeFlailState(player, resetVelocity = true) {
+    this.flailInitialized = true;
+    const angle = Number.isFinite(this.lastAimAngle) ? this.lastAimAngle : 0;
+    this.flailHeadX = player.x + Math.cos(angle) * FLAIL_CONFIG.targetRadius;
+    this.flailHeadY = player.y + Math.sin(angle) * FLAIL_CONFIG.targetRadius;
+    if (resetVelocity) {
+      this.flailVelX = 0;
+      this.flailVelY = 0;
+    }
+    this.flailTrail.length = 0;
+    this.flailTrailTimer = 0;
+  }
+
+  getFlailImpactRatio(speed = this.flailHeadSpeed) {
+    const range = Math.max(1, FLAIL_CONFIG.maxImpactSpeed - FLAIL_CONFIG.minImpactSpeed);
+    return Math.max(0, Math.min(1, (speed - FLAIL_CONFIG.minImpactSpeed) / range));
+  }
+
+  getFlailHeadDamage(player, impactSpeed = this.flailHeadSpeed) {
+    const ratio = this.getFlailImpactRatio(impactSpeed);
+    const baseDamage = FLAIL_CONFIG.minDamage + (FLAIL_CONFIG.maxDamage - FLAIL_CONFIG.minDamage) * ratio;
+    return baseDamage * player.damageMultiplier;
+  }
+
+  getFlailChainDamage(player, headSpeed = this.flailHeadSpeed) {
+    const ratio = Math.max(0, Math.min(1, headSpeed / Math.max(1, FLAIL_CONFIG.maxImpactSpeed)));
+    return (FLAIL_CONFIG.baseChainDamage + FLAIL_CONFIG.chainSpeedFactor * ratio) * player.damageMultiplier;
+  }
+
+  getFlailKnockback(impactSpeed, scale = 1) {
+    const ratio = this.getFlailImpactRatio(impactSpeed);
+    const amount = FLAIL_CONFIG.minKnockback + (FLAIL_CONFIG.maxKnockback - FLAIL_CONFIG.minKnockback) * ratio;
+    return amount * Math.max(0, scale);
+  }
+
+  getFlailConfig() {
+    return FLAIL_CONFIG;
+  }
+
+  canFlailHitEnemy(enemy, channel = "head") {
+    const map = channel === "chain" ? this.flailChainHitCooldowns : this.flailHeadHitCooldowns;
+    return !map.has(enemy);
+  }
+
+  markFlailEnemyHit(enemy, channel = "head") {
+    const map = channel === "chain" ? this.flailChainHitCooldowns : this.flailHeadHitCooldowns;
+    const duration = channel === "chain" ? FLAIL_CONFIG.chainPerEnemyHitCooldown : FLAIL_CONFIG.perEnemyHitCooldown;
+    map.set(enemy, duration);
+  }
+
+  applyFlailImpactResponse(impactRatio = 0) {
+    const momentumRetention = Math.min(0.9, FLAIL_CONFIG.onHitVelocityMultiplier + (1 - impactRatio) * 0.15);
+    this.flailVelX *= momentumRetention;
+    this.flailVelY *= momentumRetention;
+    this.flailImpactPulse = Math.min(1, this.flailImpactPulse + 0.32 + impactRatio * 0.55);
+  }
+
+  boostFlailMomentum(multiplier = 1) {
+    const clamped = Math.max(0.5, Math.min(2, multiplier));
+    this.flailVelX *= clamped;
+    this.flailVelY *= clamped;
+    const speed = Math.hypot(this.flailVelX, this.flailVelY);
+    const maxSpeed = FLAIL_CONFIG.maxImpactSpeed * 2;
+    if (speed > maxSpeed) {
+      const scale = maxSpeed / speed;
+      this.flailVelX *= scale;
+      this.flailVelY *= scale;
+    }
+    this.flailHeadSpeed = Math.hypot(this.flailVelX, this.flailVelY);
+    this.flailImpactPulse = Math.min(1, this.flailImpactPulse + 0.2);
+  }
+
+  getFlailSnapshot(player) {
+    if (!this.flailInitialized) {
+      this.initializeFlailState(player, true);
+    }
+
+    const segmentCount = Math.max(2, FLAIL_CONFIG.chainSegments);
+    const points = [];
+    for (let i = 0; i <= segmentCount; i += 1) {
+      const t = i / segmentCount;
+      points.push({
+        x: player.x + (this.flailHeadX - player.x) * t,
+        y: player.y + (this.flailHeadY - player.y) * t,
+      });
+    }
+
+    return {
+      x: this.flailHeadX,
+      y: this.flailHeadY,
+      radius: FLAIL_CONFIG.headRadius,
+      velocity: { x: this.flailVelX, y: this.flailVelY },
+      speed: this.flailHeadSpeed,
+      impactPulse: this.flailImpactPulse,
+      trail: this.flailTrail,
+      chainPoints: points,
+      chainHitRadius: FLAIL_CONFIG.chainHitRadius,
+      chainVisualWidth: FLAIL_CONFIG.chainVisualWidth,
+    };
+  }
+
+  decayHitCooldowns(map, dt) {
+    for (const [enemy, remaining] of map.entries()) {
+      const next = remaining - dt;
+      if (next <= 0 || enemy?.hp <= 0) {
+        map.delete(enemy);
+      } else {
+        map.set(enemy, next);
+      }
+    }
+  }
+
+  updateFlail(dt, player, pointer) {
+    this.decayHitCooldowns(this.flailHeadHitCooldowns, dt);
+    this.decayHitCooldowns(this.flailChainHitCooldowns, dt);
+
+    if (!this.flailInitialized) {
+      this.initializeFlailState(player, true);
+    }
+
+    this.flailImpactPulse = Math.max(0, this.flailImpactPulse - dt * 3.2);
+
+    for (let i = this.flailTrail.length - 1; i >= 0; i -= 1) {
+      const node = this.flailTrail[i];
+      node.life -= dt;
+      if (node.life <= 0) {
+        this.flailTrail.splice(i, 1);
+      }
+    }
+
+    if (!this.isFlailSelected() || !pointer) {
+      this.flailHeadX += (player.x - this.flailHeadX) * Math.min(1, dt * 8);
+      this.flailHeadY += (player.y - this.flailHeadY) * Math.min(1, dt * 8);
+      this.flailVelX *= Math.max(0, 1 - dt * 9);
+      this.flailVelY *= Math.max(0, 1 - dt * 9);
+      this.flailHeadSpeed = Math.hypot(this.flailVelX, this.flailVelY);
+      return;
+    }
+
+    const aimDx = pointer.x - player.x;
+    const aimDy = pointer.y - player.y;
+    const aimLength = Math.hypot(aimDx, aimDy);
+    const dirX = aimLength > 0.001 ? aimDx / aimLength : Math.cos(this.lastAimAngle);
+    const dirY = aimLength > 0.001 ? aimDy / aimLength : Math.sin(this.lastAimAngle);
+    this.lastAimAngle = Math.atan2(dirY, dirX);
+
+    const targetX = player.x + dirX * FLAIL_CONFIG.targetRadius;
+    const targetY = player.y + dirY * FLAIL_CONFIG.targetRadius;
+    const accelX = (targetX - this.flailHeadX) * FLAIL_CONFIG.springStrength - this.flailVelX * FLAIL_CONFIG.drag;
+    const accelY = (targetY - this.flailHeadY) * FLAIL_CONFIG.springStrength - this.flailVelY * FLAIL_CONFIG.drag;
+
+    this.flailVelX += accelX * dt;
+    this.flailVelY += accelY * dt;
+    this.flailHeadX += this.flailVelX * dt;
+    this.flailHeadY += this.flailVelY * dt;
+
+    const tetherDx = this.flailHeadX - player.x;
+    const tetherDy = this.flailHeadY - player.y;
+    const tetherLength = Math.hypot(tetherDx, tetherDy);
+    if (tetherLength > FLAIL_CONFIG.maxRange) {
+      const nx = tetherDx / tetherLength;
+      const ny = tetherDy / tetherLength;
+      this.flailHeadX = player.x + nx * FLAIL_CONFIG.maxRange;
+      this.flailHeadY = player.y + ny * FLAIL_CONFIG.maxRange;
+
+      const radialSpeed = this.flailVelX * nx + this.flailVelY * ny;
+      if (radialSpeed > 0) {
+        this.flailVelX -= radialSpeed * nx;
+        this.flailVelY -= radialSpeed * ny;
+      }
+      this.flailVelX *= FLAIL_CONFIG.tangentialRetention;
+      this.flailVelY *= FLAIL_CONFIG.tangentialRetention;
+    }
+
+    const maxSpeed = FLAIL_CONFIG.maxImpactSpeed * 2.25;
+    const speed = Math.hypot(this.flailVelX, this.flailVelY);
+    if (speed > maxSpeed) {
+      const scale = maxSpeed / speed;
+      this.flailVelX *= scale;
+      this.flailVelY *= scale;
+    }
+    this.flailHeadSpeed = Math.hypot(this.flailVelX, this.flailVelY);
+
+    this.flailTrailTimer -= dt;
+    if (this.flailTrailTimer <= 0) {
+      this.flailTrail.push({
+        x: this.flailHeadX,
+        y: this.flailHeadY,
+        life: FLAIL_CONFIG.trailLifetime,
+      });
+      this.flailTrailTimer = FLAIL_CONFIG.trailInterval;
     }
   }
 
@@ -375,10 +586,12 @@ export class Weapon {
     return this.activeMeleeSwings;
   }
 
-  update(dt, player) {
+  update(dt, player, pointer = null) {
     if (this.cooldown > 0) {
       this.cooldown -= dt;
     }
+
+    this.updateFlail(dt, player, pointer);
 
     if (this.bowCharging) {
       this.bowChargeProgress = Math.min(1, this.bowChargeProgress + dt / this.bowChargeTime);
@@ -437,8 +650,10 @@ export class Weapon {
 }
 
 export function createWeaponSystem(player) {
-  return new Weapon({
+  const weapon = new Weapon({
     ...BALANCE.baseWeapon,
     magazineSize: GAME_CONFIG.weapons.gun.magazineSize + player.ammoCapacityBonus,
   });
+  weapon.initializeFlailState(player, true);
+  return weapon;
 }

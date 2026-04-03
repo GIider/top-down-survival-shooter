@@ -145,6 +145,24 @@ export const skillPerkCatalog = [
     tags: ["melee", "utility"],
   },
   {
+    id: "flail-spiked-links",
+    name: "Spiked Links",
+    description: "Flail chain chip damage is significantly increased.",
+    tags: ["flail", "melee", "chain"],
+  },
+  {
+    id: "flail-counterweight-core",
+    name: "Counterweight Core",
+    description: "Flail head and chain hits deal increased damage.",
+    tags: ["flail", "melee"],
+  },
+  {
+    id: "flail-rebound-discipline",
+    name: "Rebound Discipline",
+    description: "Hitting different enemies in quick succession boosts flail momentum.",
+    tags: ["flail", "melee", "mobility"],
+  },
+  {
     id: "bow-perfect-window",
     name: "Steady Draw",
     description: "Increase perfect arrow window by 25%.",

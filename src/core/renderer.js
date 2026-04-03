@@ -67,6 +67,7 @@ function perkTagEmoji(tag) {
     gun: "🔫",
     bow: "🏹",
     melee: "⚔️",
+    flail: "⛓️",
     utility: "🧲",
   };
   return map[tag] || "✦";
@@ -346,6 +347,63 @@ export function createRenderer(canvas, gameState) {
     ctx.beginPath();
     ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
     ctx.fill();
+
+    const weapon = gameState.systems.weaponSystem;
+    if (weapon && weapon.isFlailSelected && weapon.isFlailSelected() && typeof weapon.getFlailSnapshot === "function") {
+      const flail = weapon.getFlailSnapshot(player);
+      if (flail) {
+        const pulse = 0.5 + 0.5 * Math.sin(gameState.time * 16);
+
+        for (let i = 0; i < flail.trail.length; i += 1) {
+          const trailNode = flail.trail[i];
+          const lifeRatio = Math.max(0, Math.min(1, trailNode.life / 0.24));
+          ctx.fillStyle = `rgba(170, 238, 255, ${0.18 * lifeRatio})`;
+          ctx.beginPath();
+          ctx.arc(trailNode.x, trailNode.y, Math.max(2, flail.radius * 0.45 * lifeRatio), 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = `rgba(180, 230, 255, ${0.5 + pulse * 0.2})`;
+        ctx.lineWidth = Math.max(2, flail.chainVisualWidth);
+        ctx.beginPath();
+        ctx.moveTo(flail.chainPoints[0].x, flail.chainPoints[0].y);
+        for (let i = 1; i < flail.chainPoints.length; i += 1) {
+          ctx.lineTo(flail.chainPoints[i].x, flail.chainPoints[i].y);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.32)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < flail.chainPoints.length - 1; i += 1) {
+          const from = flail.chainPoints[i];
+          const to = flail.chainPoints[i + 1];
+          const t = i / Math.max(1, flail.chainPoints.length - 2);
+          const glint = 0.5 + 0.5 * Math.sin(gameState.time * 8 - t * 8);
+          ctx.globalAlpha = 0.22 + glint * 0.2;
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = `rgba(255, 210, 126, ${0.24 + flail.impactPulse * 0.35})`;
+        ctx.beginPath();
+        ctx.arc(flail.x, flail.y, flail.radius + 8 + flail.impactPulse * 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#f2ca88";
+        ctx.beginPath();
+        ctx.arc(flail.x, flail.y, flail.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255, 239, 198, 0.88)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(flail.x, flail.y, flail.radius + 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
 
     if (Array.isArray(player.activeDurationBars) && player.activeDurationBars.length > 0) {
       const barWidth = 54;
@@ -797,7 +855,7 @@ export function createRenderer(canvas, gameState) {
     const angle = Math.atan2(dy, dx);
     const aimDistance = Math.hypot(dx, dy);
 
-    const weaponType = weapon.isGunSelected && weapon.isGunSelected() ? "gun" : weapon.isBowSelected && weapon.isBowSelected() ? "bow" : "other";
+    const weaponType = weapon.isGunSelected && weapon.isGunSelected() ? "gun" : weapon.isBowSelected && weapon.isBowSelected() ? "bow" : weapon.isFlailSelected && weapon.isFlailSelected() ? "flail" : "other";
     const laserContext = {
       enableLaser: false,
       weaponType,
@@ -870,6 +928,20 @@ export function createRenderer(canvas, gameState) {
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(aim.x, aim.y, ring, 0, Math.PI * 2);
+      ctx.stroke();
+      return;
+    }
+
+    if (weapon.isFlailSelected && weapon.isFlailSelected() && typeof weapon.getFlailSnapshot === "function") {
+      const flail = weapon.getFlailSnapshot(player);
+      if (!flail) {
+        return;
+      }
+
+      ctx.strokeStyle = "rgba(238, 255, 176, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(flail.x, flail.y, Math.max(6, flail.radius + 2), 0, Math.PI * 2);
       ctx.stroke();
     }
   }

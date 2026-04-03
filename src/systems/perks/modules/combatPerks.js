@@ -143,6 +143,70 @@ const meleeSkillCooldownKill = {
   },
 };
 
+const flailSpikedLinks = {
+  id: "flail-spiked-links",
+  hooks: {
+    [PERK_HOOKS.onDamageCompute](context) {
+      if (context.damageSource?.sourceType !== "flailChain") {
+        return;
+      }
+      context.damage *= 1.55;
+    },
+  },
+};
+
+const flailCounterweightCore = {
+  id: "flail-counterweight-core",
+  hooks: {
+    [PERK_HOOKS.onDamageCompute](context) {
+      if (context.damageSource?.sourceType === "flailHead") {
+        context.damage *= 1.25;
+      }
+      if (context.damageSource?.sourceType === "flailChain") {
+        context.damage *= 1.15;
+      }
+    },
+  },
+};
+
+const flailReboundDiscipline = {
+  id: "flail-rebound-discipline",
+  hooks: {
+    [PERK_HOOKS.onEnemyHit](context) {
+      if (context.damageSource?.sourceType !== "flailHead") {
+        return;
+      }
+      const player = context.player;
+      const rebound = player._flailReboundState || {
+        lastEnemy: null,
+        timer: 0,
+      };
+
+      const isSwapHit = rebound.lastEnemy && rebound.lastEnemy !== context.enemy && rebound.timer > 0;
+      if (isSwapHit) {
+        const weapon = context.gameState?.systems?.weaponSystem;
+        if (weapon && typeof weapon.boostFlailMomentum === "function") {
+          weapon.boostFlailMomentum(1.18);
+        }
+      }
+
+      rebound.lastEnemy = context.enemy;
+      rebound.timer = 0.7;
+      player._flailReboundState = rebound;
+    },
+    [PERK_HOOKS.onPlayerRuntimeUpdate](context) {
+      const rebound = context.player?._flailReboundState;
+      if (!rebound) {
+        return;
+      }
+      rebound.timer = Math.max(0, rebound.timer - context.dt);
+      if (rebound.timer <= 0) {
+        rebound.lastEnemy = null;
+      }
+    },
+  },
+};
+
 export const combatPerks = [
   gunTripleShot,
   gunBackwardShot,
@@ -153,4 +217,7 @@ export const combatPerks = [
   gunKillReload,
   bowKillReload,
   meleeSkillCooldownKill,
+  flailSpikedLinks,
+  flailCounterweightCore,
+  flailReboundDiscipline,
 ];

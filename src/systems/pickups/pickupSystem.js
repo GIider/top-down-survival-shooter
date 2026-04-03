@@ -186,7 +186,11 @@ function updateNukeWaves(gameState, dt) {
   }
 }
 
-export function maybeSpawnPickupOnEnemyDeath(gameState, enemy, difficulty = 0, weaponSystem = null) {
+export function maybeSpawnPickupOnEnemyDeath(gameState, enemy, difficulty = 0, weaponSystem = null, damageSource = null) {
+  if (damageSource?.sourceType === "nuke") {
+    return;
+  }
+
   const chance = Math.min(0.7, (PICKUP_BASE_DROP_CHANCE + difficulty * 0.03) * (enemy.pickupDropMultiplier || 1));
   if (Math.random() > chance) {
     return;
