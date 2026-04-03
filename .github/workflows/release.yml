@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run regression tests
+        run: npm run test:regression
+
       - name: Build
         run: npm run build
         env:
@@ -35,14 +38,14 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: game-html
-          path: dist/index.html
+          name: site-dist
+          path: dist
           retention-days: 90
 
       - name: Create or update latest release
         run: |
           gh release delete latest --yes 2>/dev/null || true
-          gh release create latest dist/index.html \
+          gh release create latest dist/index.html dist/perks/index.html \
             --title "Latest Build (run ${{ github.run_number }})" \
             --notes "Built from commit ${{ github.sha }} on $(date -u +%Y-%m-%d)" \
             --prerelease

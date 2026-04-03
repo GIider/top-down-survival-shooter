@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { getPlayerDamageMultiplier } from "../../entities/player.js";
+import { PERK_HOOKS } from "../perks/contracts.js";
 
 const SHOUT_CONFIG = GAME_CONFIG.skills.shout;
 
@@ -43,20 +44,37 @@ export function updateShoutPreview(services, shoutCanceledDuringHold) {
 export function tryShout(services) {
   const gameState = services.gameState;
   const player = gameState.player;
+  const perkEngine = services.getPerkEngine();
   if (player.shoutCooldownRemaining > 0) {
     return false;
   }
 
   player.shoutCooldownRemaining = player.shoutCooldown;
+  const waveContext = {
+    gameState,
+    player,
+    maxRadius: player.shoutRadius,
+    stunDuration: SHOUT_CONFIG.stunDuration,
+    reflectProjectiles: false,
+    dealHalfMaxHp: false,
+    healPerEnemy: 0,
+  };
+  const finalizedWaveContext = perkEngine
+    ? perkEngine.runTransformHook(PERK_HOOKS.onShoutCreateWave, waveContext, player)
+    : waveContext;
   gameState.shoutWaves.push({
     x: player.x,
     y: player.y,
     elapsed: 0,
     duration: SHOUT_CONFIG.wave.duration,
-    maxRadius: player.shoutRadius + player.shoutRangeBonus,
+    maxRadius: finalizedWaveContext.maxRadius,
     thickness: SHOUT_CONFIG.wave.thickness,
     reflectedProjectiles: new Set(),
     stunnedEnemies: new Set(),
+    stunDuration: finalizedWaveContext.stunDuration,
+    reflectProjectiles: finalizedWaveContext.reflectProjectiles,
+    dealHalfMaxHp: finalizedWaveContext.dealHalfMaxHp,
+    healPerEnemy: finalizedWaveContext.healPerEnemy,
   });
 
   gameState.effects.push({
@@ -84,7 +102,7 @@ export function updateShoutWaves(services, dt) {
     const progress = Math.max(0, Math.min(1, wave.elapsed / wave.duration));
     const radius = wave.maxRadius * progress;
 
-    if (player.shoutReflectProjectiles) {
+    if (wave.reflectProjectiles) {
       for (let p = gameState.projectiles.length - 1; p >= 0; p -= 1) {
         const projectile = gameState.projectiles[p];
         if (projectile.owner !== "enemy") {
@@ -120,13 +138,13 @@ export function updateShoutWaves(services, dt) {
       const distance = Math.hypot(enemy.x - wave.x, enemy.y - wave.y);
       if (distance <= radius + enemy.radius + wave.thickness * 0.25) {
         wave.stunnedEnemies.add(enemy);
-        enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, SHOUT_CONFIG.stunDuration + player.shoutStunDurationBonus);
-        if (player.shoutDealsHalfMaxHp) {
+        enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, wave.stunDuration);
+        if (wave.dealHalfMaxHp) {
           enemy.hp -= enemy.maxHp * 0.5;
         }
-        if (player.shoutHealsPerEnemy) {
+        if (wave.healPerEnemy > 0) {
           const maxHp = player.maxHp + player.maxHpBonus;
-          player.hp = Math.min(maxHp, player.hp + 10);
+          player.hp = Math.min(maxHp, player.hp + wave.healPerEnemy);
         }
         gameState.effects.push({
           x: enemy.x,

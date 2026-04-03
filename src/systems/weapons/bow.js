@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../config/gameConfig.js";
 import { getPlayerDamageMultiplier } from "../../entities/player.js";
 import { createProjectile } from "../../entities/projectile.js";
+import { PERK_HOOKS } from "../perks/contracts.js";
 
 const BOW_CONFIG = GAME_CONFIG.weapons.bow;
 
@@ -24,17 +25,14 @@ export function getBowStrength(ratio) {
   };
 }
 
-export function createBowProjectile(player, angle, chargeRatio, arrowShotId) {
+export function createBowProjectile(player, angle, chargeRatio, arrowShotId, perkEngine = null) {
   const { strength, isPerfect } = getBowStrength(chargeRatio);
-  const damageMultiplier = player.bowFireArrows ? 1.25 : 1;
   const damage =
     (BOW_CONFIG.minDamage + (BOW_CONFIG.maxDamage - BOW_CONFIG.minDamage) * strength) *
-    getPlayerDamageMultiplier(player) *
-    damageMultiplier;
+    getPlayerDamageMultiplier(player);
   const speed = (BOW_CONFIG.minSpeed + (BOW_CONFIG.maxSpeed - BOW_CONFIG.minSpeed) * strength) * player.projectileSpeedMultiplier;
-  const ricochetEnabled = !!player.bowRicochetToClosestEnemy && isPerfect;
 
-  return createProjectile({
+  const projectile = createProjectile({
     position: { x: player.x, y: player.y },
     velocity: {
       x: Math.cos(angle) * speed,
@@ -46,13 +44,27 @@ export function createBowProjectile(player, angle, chargeRatio, arrowShotId) {
     color: isPerfect ? BOW_CONFIG.perfectColor : BOW_CONFIG.normalColor,
     radius: isPerfect ? BOW_CONFIG.perfectRadius : BOW_CONFIG.normalRadius,
     modifiers: [],
-    pierceRemaining: ricochetEnabled ? 0 : isPerfect ? BOW_CONFIG.perfectPierce : 0,
+    pierceRemaining: isPerfect ? BOW_CONFIG.perfectPierce : 0,
     hitEnemies: new Set(),
     isArrow: true,
-    isFireArrow: !!player.bowFireArrows,
+    isFireArrow: false,
     arrowShotId,
-    ricochetRemaining: ricochetEnabled ? 5 : 0,
+    ricochetRemaining: 0,
   });
+
+  if (!perkEngine) {
+    return projectile;
+  }
+
+  const context = {
+    projectile,
+    player,
+    weaponType: "bow",
+    chargeRatio,
+    isPerfect,
+    gameState: null,
+  };
+  return perkEngine.runTransformHook(PERK_HOOKS.onProjectileCreate, context, player).projectile;
 }
 
 export function getBowConfig() {

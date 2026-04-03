@@ -15,6 +15,7 @@ import { updateEnemies, updateEnemySpawning } from "./systems/enemySystem.js";
 import { updateEffects, updateFloatingTexts, updateSlashEffects } from "./systems/effectSystem.js";
 import { updateIndicators } from "./systems/indicatorSystem.js";
 import { applyPerk, getPerkChoices } from "./systems/perkSystem.js";
+import { createPerkEngine } from "./systems/perks/perkEngine.js";
 import { updatePickups } from "./systems/pickups/index.js";
 import { applyPendingLevelUps, updatePlayerRuntime } from "./systems/playerRuntimeSystem.js";
 import { updateProjectiles } from "./systems/projectileSystem.js";
@@ -50,12 +51,15 @@ const gameState = createInitialState();
 gameState.runHistory = loadRunHistory();
 gameState.perkProgress = loadPerkProgress();
 gameState.appVersion = APP_VERSION;
+const perkEngine = createPerkEngine();
+gameState.systems.perkEngine = perkEngine;
 const input = createInput(canvas);
 let weaponSystem = createWeaponSystem(gameState.player);
 gameState.systems.weaponSystem = weaponSystem;
 gameState.systems.world = createWorldSystem(Math.floor(Math.random() * 2147483647));
 const services = createGameServices({ gameState, canvas, documentRef: document, isDebugMode });
 services.setWeaponSystem(weaponSystem);
+services.setPerkEngine(perkEngine);
 services.setWorld(gameState.systems.world);
 
 let blinkCanceledDuringHold = false;
@@ -78,6 +82,8 @@ function applyFreshState(freshState) {
 
   weaponSystem = createWeaponSystem(gameState.player);
   services.setWeaponSystem(weaponSystem);
+  perkEngine.invalidate();
+  services.setPerkEngine(perkEngine);
   services.setWorld(createWorldSystem(Math.floor(Math.random() * 2147483647)));
   gameState.systems.weaponSystem = weaponSystem;
   gameState.systems.world = services.getWorld();
@@ -288,7 +294,7 @@ function choosePerkByPointer() {
     return true;
   }
 
-  applyPerk(player, selected);
+  applyPerk(player, selected, { perkEngine });
   markPerkActivated(selected.id);
   player.perkPoints = Math.max(0, player.perkPoints - 1);
 
@@ -311,6 +317,9 @@ function choosePerkByPointer() {
 }
 
 function update(dt) {
+  if (typeof perkEngine.resetFrameDebug === "function") {
+    perkEngine.resetFrameDebug();
+  }
   fpsTracker.update(dt);
 
   if (gameState.player.perkRerollAnimationTimer > 0) {
@@ -498,14 +507,14 @@ function update(dt) {
 
   if (reloadPressed && weaponSystem.isGunSelected()) {
     if (weaponSystem.isReloading) {
-      weaponSystem.onReloadClick(gameState.player);
+      weaponSystem.onReloadClick(gameState.player, perkEngine);
     } else {
       weaponSystem.startReload(gameState.player);
     }
   }
 
   if (clicked && weaponSystem.isGunSelected() && weaponSystem.isReloading) {
-    weaponSystem.onReloadClick(gameState.player);
+    weaponSystem.onReloadClick(gameState.player, perkEngine);
   } else if (weaponSystem.isMeleeSelected() && (input.pointer.down || clicked)) {
     weaponSystem.tryMeleeAttack(gameState.player, worldPointer, gameState.slashEffects);
   } else if (weaponSystem.isBowSelected()) {
@@ -513,10 +522,10 @@ function update(dt) {
       weaponSystem.startBowCharge();
     }
     if (releasedClick) {
-      weaponSystem.releaseBowShot(gameState.player, worldPointer, gameState.projectiles);
+      weaponSystem.releaseBowShot(gameState.player, worldPointer, gameState.projectiles, perkEngine);
     }
   } else if (weaponSystem.isGunSelected() && (input.pointer.down || clicked)) {
-    weaponSystem.tryFire(gameState.player, worldPointer, gameState.projectiles);
+    weaponSystem.tryFire(gameState.player, worldPointer, gameState.projectiles, perkEngine);
   }
 
   weaponSystem.update(dt, gameState.player);

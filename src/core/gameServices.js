@@ -27,6 +27,7 @@ function createEventBus() {
 export function createGameServices({ gameState, canvas, documentRef, isDebugMode }) {
   const events = createEventBus();
   let weaponSystem = gameState.systems.weaponSystem ?? null;
+  let perkEngine = gameState.systems.perkEngine ?? null;
 
   return {
     canvas,
@@ -51,6 +52,14 @@ export function createGameServices({ gameState, canvas, documentRef, isDebugMode
       weaponSystem = nextWeaponSystem;
       gameState.systems.weaponSystem = nextWeaponSystem;
       events.emit("weaponSystem:changed", nextWeaponSystem);
+    },
+    getPerkEngine() {
+      return perkEngine;
+    },
+    setPerkEngine(nextPerkEngine) {
+      perkEngine = nextPerkEngine;
+      gameState.systems.perkEngine = nextPerkEngine;
+      events.emit("perkEngine:changed", nextPerkEngine);
     },
     resetEvents() {
       events.clear();

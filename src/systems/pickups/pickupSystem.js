@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { PICKUP_DEFS, PICKUP_POOL } from "./pickupCatalog.js";
+import { PERK_HOOKS } from "../perks/contracts.js";
 
 const PICKUP_BASE_DROP_CHANCE = 0.26;
 const NUKE_WAVE_SPEED = 920;
@@ -204,13 +205,23 @@ export function maybeSpawnPickupOnEnemyDeath(gameState, enemy, difficulty = 0, w
 
   const def = pickWeightedPickup(eligiblePool);
   gameState.drops.push(createPickup(def, enemy.x, enemy.y));
-  const multiplier = gameState.player?.pickupGlobalCooldownMultiplier || 1;
-  cooldowns[def.type] = Math.max(0.25, (def.globalCooldown || 1) * multiplier);
+  const perkEngine = gameState.systems?.perkEngine;
+  const context = {
+    multiplier: 1,
+    player: gameState.player,
+    pickupDef: def,
+    gameState,
+  };
+  const finalized = perkEngine
+    ? perkEngine.runTransformHook(PERK_HOOKS.onPickupGlobalCooldownCompute, context, gameState.player)
+    : context;
+  cooldowns[def.type] = Math.max(0.25, (def.globalCooldown || 1) * finalized.multiplier);
 }
 
 export function updatePickups(services, dt) {
   const gameState = services.gameState;
   const player = gameState.player;
+  const perkEngine = gameState.systems?.perkEngine;
   const dropList = gameState.drops;
   const cooldowns = gameState.pickupTypeCooldowns || (gameState.pickupTypeCooldowns = {});
   const pickupRadius = player.radius + GAME_CONFIG.drops.heal.pickupBaseBonus + player.pickupRadiusBonus;
@@ -222,6 +233,15 @@ export function updatePickups(services, dt) {
   updateTimedPickupEffects(gameState, dt);
   updateNukeWaves(gameState, dt);
 
+  const magnetContext = {
+    enabled: false,
+    player,
+    gameState,
+  };
+  const finalizedMagnetContext = perkEngine
+    ? perkEngine.runTransformHook(PERK_HOOKS.onPickupMagnetQuery, magnetContext, player)
+    : magnetContext;
+
   for (let index = dropList.length - 1; index >= 0; index -= 1) {
     const drop = dropList[index];
     drop.lifetime -= dt;
@@ -230,7 +250,7 @@ export function updatePickups(services, dt) {
       continue;
     }
 
-    if (player.pickupMagnetEnabled) {
+    if (finalizedMagnetContext.enabled) {
       const dxMagnet = player.x - drop.position.x;
       const dyMagnet = player.y - drop.position.y;
       const distMagnet = Math.hypot(dxMagnet, dyMagnet) || 1;

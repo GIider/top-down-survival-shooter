@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from "../core/constants.js";
 import { skillPerkCatalog } from "./perks/skillPerkCatalog.js";
+import { PERK_HOOKS } from "./perks/contracts.js";
 
 const PERK_CONFIG = GAME_CONFIG.perks;
 export const allPerks = skillPerkCatalog;
@@ -33,14 +34,24 @@ export function getPerkChoices(player, excludedPerkIds = []) {
   return selected;
 }
 
-export function applyPerk(player, perk) {
+export function applyPerk(player, perk, options = {}) {
   if (player.ownedPerkIds.has(perk.id)) {
     return;
   }
 
   player.ownedPerks.push(perk);
   player.ownedPerkIds.add(perk.id);
-  perk.apply(player);
+  if (options.perkEngine && typeof options.perkEngine.invalidate === "function") {
+    options.perkEngine.invalidate();
+    options.perkEngine.emitSideEffectHook(
+      PERK_HOOKS.onPerkApplied,
+      {
+        player,
+        perkId: perk.id,
+      },
+      player
+    );
+  }
 
   const newMaxHp = Math.max(PERK_CONFIG.minBaseMaxHp, GAME_CONFIG.player.baseHp + player.maxHpBonus);
   player.maxHp = newMaxHp;

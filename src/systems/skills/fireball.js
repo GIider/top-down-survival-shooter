@@ -1,12 +1,14 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { getPlayerDamageMultiplier } from "../../entities/player.js";
 import { igniteTreesAt, isProjectileBlockedByMountain } from "../worldSystem.js";
+import { PERK_HOOKS } from "../perks/contracts.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 
 export function tryFireball(services, worldPointer) {
   const gameState = services.gameState;
   const player = gameState.player;
+  const perkEngine = services.getPerkEngine();
   if (player.fireballCooldownRemaining > 0) {
     return false;
   }
@@ -21,18 +23,24 @@ export function tryFireball(services, worldPointer) {
   const nx = dx / length;
   const ny = dy / length;
   player.fireballCooldownRemaining = player.fireballCooldown;
-  gameState.fireballs.push({
+  const fireball = {
     x: player.x,
     y: player.y,
     vx: nx * FIREBALL_CONFIG.speed,
     vy: ny * FIREBALL_CONFIG.speed,
     radius: FIREBALL_CONFIG.radius,
     damage: FIREBALL_CONFIG.directDamage * getPlayerDamageMultiplier(player),
-    splashDamage: FIREBALL_CONFIG.splashDamage * getPlayerDamageMultiplier(player) * player.fireballDetonationDamageMultiplier,
-    splashRadius: FIREBALL_CONFIG.splashRadius * player.fireballDetonationRadiusMultiplier,
+    splashDamage: FIREBALL_CONFIG.splashDamage * getPlayerDamageMultiplier(player),
+    splashRadius: FIREBALL_CONFIG.splashRadius,
     lifetime: FIREBALL_CONFIG.lifetime,
     alive: true,
-  });
+    detonateOnImpact: false,
+    spawnFireField: false,
+  };
+  if (perkEngine) {
+    perkEngine.runTransformHook(PERK_HOOKS.onFireballCreate, { gameState, player, fireball }, player);
+  }
+  gameState.fireballs.push(fireball);
   gameState.effects.push({
     x: player.x,
     y: player.y,

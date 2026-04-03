@@ -57,7 +57,16 @@ export function createHud(documentRef, options = {}) {
         }
       }
       if (statPerks) {
-        statPerks.textContent = `Perks: ${player.ownedPerks.length}`;
+        if (isDebugMode && services.getPerkEngine && services.getPerkEngine()) {
+          const debug = services.getPerkEngine().getDebugSnapshot();
+          statPerks.textContent =
+            `Perks: ${player.ownedPerks.length}` +
+            ` | Hooks: ${debug.invocationsThisFrame}` +
+            ` | Active: ${debug.activePerkCount}` +
+            ` | Last: ${debug.lastInvocation}`;
+        } else {
+          statPerks.textContent = `Perks: ${player.ownedPerks.length}`;
+        }
       }
       if (statEnemies) {
         statEnemies.textContent = `Enemies: ${gameState.enemies.length}`;

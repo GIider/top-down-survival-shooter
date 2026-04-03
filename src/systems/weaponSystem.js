@@ -8,6 +8,7 @@ import {
   getMeleeConfig,
   getMeleePreview,
 } from "./weapons/index.js";
+import { createDefaultShotPlan, PERK_HOOKS } from "./perks/contracts.js";
 
 const GUN_CONFIG = getGunConfig();
 const BOW_CONFIG = getBowConfig();
@@ -105,14 +106,24 @@ export class Weapon {
     return this.reloadProgress;
   }
 
-  getBowChargeWindow(player = null) {
-    const multiplier = player?.bowPerfectWindowMultiplier ?? 1;
-    return Weapon.scaleWindow(this.bowChargeWindow, multiplier);
+  getBowChargeWindow(player = null, perkEngine = null) {
+    const context = {
+      weaponType: "bow",
+      multiplier: 1,
+      player,
+    };
+    const finalized = perkEngine ? perkEngine.runTransformHook(PERK_HOOKS.onPerfectWindowCompute, context, player) : context;
+    return Weapon.scaleWindow(this.bowChargeWindow, finalized.multiplier);
   }
 
-  getPerfectReloadWindow(player = null) {
-    const multiplier = player?.gunPerfectWindowMultiplier ?? 1;
-    return Weapon.scaleWindow(this.perfectWindow, multiplier);
+  getPerfectReloadWindow(player = null, perkEngine = null) {
+    const context = {
+      weaponType: "gun",
+      multiplier: 1,
+      player,
+    };
+    const finalized = perkEngine ? perkEngine.runTransformHook(PERK_HOOKS.onPerfectWindowCompute, context, player) : context;
+    return Weapon.scaleWindow(this.perfectWindow, finalized.multiplier);
   }
 
   getBowChargeProgress() {
@@ -198,19 +209,19 @@ export class Weapon {
     this.showAmmoBar(1);
   }
 
-  onReloadClick(player) {
+  onReloadClick(player, perkEngine = null) {
     if (!this.isReloading || this.reloadAttemptUsed) {
       return false;
     }
 
     this.reloadAttemptUsed = true;
 
-    const [start, end] = this.getPerfectReloadWindow(player);
+    const [start, end] = this.getPerfectReloadWindow(player, perkEngine);
     if (this.reloadProgress >= start && this.reloadProgress <= end) {
       this.triggerReloadFeedback("perfect", GUN_CONFIG.reloadFeedback.perfectDuration);
       this.finishReload(player);
-      if (player.gunPerfectReloadMoveSpeedBoost) {
-        player.perfectReloadMoveBoostTimer = 1;
+      if (perkEngine) {
+        perkEngine.emitSideEffectHook(PERK_HOOKS.onPerfectReloadSuccess, { player, weaponSystem: this }, player);
       }
       return true;
     }
@@ -221,7 +232,7 @@ export class Weapon {
     return false;
   }
 
-  tryFire(player, target, projectileList) {
+  tryFire(player, target, projectileList, perkEngine = null) {
     this.lastAimAngle = Math.atan2(target.y - player.y, target.x - player.x);
 
     if (!this.isGunSelected()) {
@@ -241,23 +252,31 @@ export class Weapon {
     }
 
     const spread = this.spread * player.spreadMultiplier;
-    const reverseTarget = {
-      x: player.x - (target.x - player.x),
-      y: player.y - (target.y - player.y),
-    };
-    if (player.gunTripleShot) {
-      const offsets = [-0.14, 0, 0.14];
-      for (let index = 0; index < offsets.length; index += 1) {
-        projectileList.push(createGunProjectile(player, target, spread, offsets[index]));
-        if (player.gunBackwardShot) {
-          projectileList.push(createGunProjectile(player, reverseTarget, spread, offsets[index]));
-        }
-      }
-    } else {
-      projectileList.push(createGunProjectile(player, target, spread));
-      if (player.gunBackwardShot) {
-        projectileList.push(createGunProjectile(player, reverseTarget, spread));
-      }
+    const shotPlan = createDefaultShotPlan({ player, target, spread });
+    const finalizedPlan = perkEngine
+      ? perkEngine.runTransformHook(PERK_HOOKS.onWeaponFireRequest, shotPlan, player)
+      : shotPlan;
+
+    for (let index = 0; index < finalizedPlan.shots.length; index += 1) {
+      const shot = finalizedPlan.shots[index];
+      const shotTarget = shot.reverse
+        ? {
+            x: player.x - (target.x - player.x),
+            y: player.y - (target.y - player.y),
+          }
+        : target;
+      const projectile = createGunProjectile(player, shotTarget, spread, shot.angleOffset || 0);
+      const projectileContext = {
+        projectile,
+        player,
+        target: shotTarget,
+        weaponType: "gun",
+        gameState: null,
+      };
+      const finalizedProjectile = perkEngine
+        ? perkEngine.runTransformHook(PERK_HOOKS.onProjectileCreate, projectileContext, player).projectile
+        : projectile;
+      projectileList.push(finalizedProjectile);
     }
     if (!hasInfiniteAmmo) {
       this.currentAmmo -= 1;
@@ -290,7 +309,7 @@ export class Weapon {
     }
   }
 
-  releaseBowShot(player, target, projectileList) {
+  releaseBowShot(player, target, projectileList, perkEngine = null) {
     this.lastAimAngle = Math.atan2(target.y - player.y, target.x - player.x);
 
     if (!this.isBowSelected() || !this.bowCharging) {
@@ -298,8 +317,8 @@ export class Weapon {
     }
 
     const ratio = Math.max(0, Math.min(1, this.bowChargeProgress));
-    const projectile = createBowProjectile(player, this.lastAimAngle, ratio, ++this.arrowShotSequence);
-    const [start, end] = this.getBowChargeWindow(player);
+    const projectile = createBowProjectile(player, this.lastAimAngle, ratio, ++this.arrowShotSequence, perkEngine);
+    const [start, end] = this.getBowChargeWindow(player, perkEngine);
     const isPerfect = ratio >= start && ratio <= end;
 
     projectileList.push(projectile);

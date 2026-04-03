@@ -2,6 +2,7 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../../entities/player.js";
 import { igniteTreesAt, resolvePositionAgainstMountains } from "../worldSystem.js";
 import { getMeleeConfig } from "../weapons/index.js";
+import { createDamageContext, PERK_HOOKS } from "../perks/contracts.js";
 
 const BLINK_CONFIG = GAME_CONFIG.skills.blink;
 const MELEE_CONFIG = getMeleeConfig();
@@ -23,7 +24,7 @@ function distancePointToSegment(px, py, ax, ay, bx, by) {
   return Math.hypot(px - cx, py - cy);
 }
 
-function applyBlinkSwordStrike(gameState, weaponSystem, fromX, fromY, toX, toY) {
+function applyBlinkSwordStrike(gameState, weaponSystem, fromX, fromY, toX, toY, perkEngine = null) {
   const player = gameState.player;
   const comboIndex = weaponSystem.comboIndex ?? 0;
   const comboConfig = MELEE_CONFIG.combo[comboIndex] || MELEE_CONFIG.combo[0];
@@ -40,7 +41,23 @@ function applyBlinkSwordStrike(gameState, weaponSystem, fromX, fromY, toX, toY) 
       continue;
     }
 
-    enemy.hp -= scaleDamageAgainstEnemy(player, enemy, damage);
+    const finalDamage = perkEngine
+      ? perkEngine.runTransformHook(
+          PERK_HOOKS.onDamageCompute,
+          createDamageContext({
+            player,
+            target: enemy,
+            baseDamage: damage,
+            damageSource: {
+              sourceType: "blinkSwordStrike",
+              tags: ["blink", "melee"],
+            },
+            gameState,
+          }),
+          player
+        ).damage
+      : scaleDamageAgainstEnemy(player, enemy, damage);
+    enemy.hp -= finalDamage;
     gameState.effects.push({
       x: enemy.x,
       y: enemy.y,
@@ -122,6 +139,7 @@ export function tryBlink(services, worldPointer) {
   const player = gameState.player;
   const world = services.getWorld();
   const weaponSystem = services.getWeaponSystem();
+  const perkEngine = services.getPerkEngine();
   if (player.blinkMaxCharges <= 1) {
     if (player.blinkCooldownRemaining > 0) {
       return false;
@@ -139,8 +157,15 @@ export function tryBlink(services, worldPointer) {
 
   const nx = dx / length;
   const ny = dy / length;
-  const blinkDirX = player.blinkAimsBehind ? -nx : nx;
-  const blinkDirY = player.blinkAimsBehind ? -ny : ny;
+  const direction = {
+    dirX: nx,
+    dirY: ny,
+  };
+  const finalizedDirection = perkEngine
+    ? perkEngine.runTransformHook(PERK_HOOKS.onBlinkDirectionCompute, direction, player)
+    : direction;
+  const blinkDirX = finalizedDirection.dirX;
+  const blinkDirY = finalizedDirection.dirY;
   const sourceX = player.x;
   const sourceY = player.y;
   const targetX = player.x + blinkDirX * player.blinkDistance;
@@ -170,7 +195,26 @@ export function tryBlink(services, worldPointer) {
     color: BLINK_CONFIG.effect.color,
   });
 
-  if (player.blinkReloadsGun) {
+  const effectContext = {
+    gameState,
+    player,
+    weaponSystem,
+    sourceX,
+    sourceY,
+    targetX: player.x,
+    targetY: player.y,
+    reloadGun: false,
+    explodeSource: false,
+    explodeTarget: false,
+    spawnFireTrail: false,
+    spawnIceTrail: false,
+    swordStrike: false,
+  };
+  const finalizedEffectContext = perkEngine
+    ? perkEngine.runTransformHook(PERK_HOOKS.onBlinkEffectsCompute, effectContext, player)
+    : effectContext;
+
+  if (finalizedEffectContext.reloadGun) {
     weaponSystem.currentAmmo = weaponSystem.getMagazineSize(player);
     weaponSystem.isReloading = false;
     weaponSystem.reloadProgress = 0;
@@ -179,20 +223,20 @@ export function tryBlink(services, worldPointer) {
     weaponSystem.showAmmoBar(1);
   }
 
-  if (player.blinkExplosionAtSource) {
+  if (finalizedEffectContext.explodeSource) {
     applyBlinkExplosion(gameState, sourceX, sourceY);
   }
-  if (player.blinkExplosionAtTarget) {
+  if (finalizedEffectContext.explodeTarget) {
     applyBlinkExplosion(gameState, player.x, player.y);
   }
-  if (player.blinkLeavesFireTrail) {
+  if (finalizedEffectContext.spawnFireTrail) {
     spawnBlinkTrail(gameState, sourceX, sourceY, player.x, player.y, "fire");
   }
-  if (player.blinkLeavesIceTrail) {
+  if (finalizedEffectContext.spawnIceTrail) {
     spawnBlinkTrail(gameState, sourceX, sourceY, player.x, player.y, "ice");
   }
-  if (player.blinkSwordStrike && weaponSystem.isMeleeSelected()) {
-    applyBlinkSwordStrike(gameState, weaponSystem, sourceX, sourceY, player.x, player.y);
+  if (finalizedEffectContext.swordStrike && weaponSystem.isMeleeSelected()) {
+    applyBlinkSwordStrike(gameState, weaponSystem, sourceX, sourceY, player.x, player.y, perkEngine);
   }
 
   return true;
@@ -232,6 +276,7 @@ export function updateBlinkCharges(services, dt) {
 export function updateBlinkPreview(services, worldPointer, blinkCanceledDuringHold) {
   const player = services.getPlayer();
   const world = services.getWorld();
+  const perkEngine = services.getPerkEngine();
   if (player.blinkCharges <= 0 || blinkCanceledDuringHold) {
     player.blinkPreview.active = false;
     return;
@@ -247,8 +292,15 @@ export function updateBlinkPreview(services, worldPointer, blinkCanceledDuringHo
 
   const nx = dx / length;
   const ny = dy / length;
-  const previewDirX = player.blinkAimsBehind ? -nx : nx;
-  const previewDirY = player.blinkAimsBehind ? -ny : ny;
+  const direction = {
+    dirX: nx,
+    dirY: ny,
+  };
+  const finalizedDirection = perkEngine
+    ? perkEngine.runTransformHook(PERK_HOOKS.onBlinkDirectionCompute, direction, player)
+    : direction;
+  const previewDirX = finalizedDirection.dirX;
+  const previewDirY = finalizedDirection.dirY;
   const preview = resolvePositionAgainstMountains(
     world,
     player.x + previewDirX * player.blinkDistance,

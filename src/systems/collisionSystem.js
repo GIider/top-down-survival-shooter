@@ -3,6 +3,7 @@ import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../entities/
 import { createEnemy } from "../entities/enemy.js";
 import { maybeSpawnPickupOnEnemyDeath } from "./pickups/index.js";
 import { getTreeEffectsAt, igniteTreesAt } from "./worldSystem.js";
+import { createDamageContext, PERK_HOOKS } from "./perks/contracts.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
@@ -106,40 +107,112 @@ function reflectProjectile(projectile, nx, ny, speedMultiplier = 1) {
   projectile.velocity.y *= speedMultiplier;
 }
 
+function normalizeDamageSource(damageSource = {}) {
+  const sourceProjectile = damageSource?.projectile;
+  if (sourceProjectile?.isArrow) {
+    return {
+      sourceType: "arrowProjectile",
+      projectile: sourceProjectile,
+      tags: ["projectile", "arrow", "bow"],
+      arrowShotId: damageSource?.arrowShotId ?? null,
+      meleeAttackId: null,
+    };
+  }
+  if (sourceProjectile?.isGunBullet) {
+    return {
+      sourceType: "gunProjectile",
+      projectile: sourceProjectile,
+      tags: ["projectile", "gun"],
+      arrowShotId: null,
+      meleeAttackId: null,
+    };
+  }
+  if (damageSource?.meleeAttackId !== undefined && damageSource?.meleeAttackId !== null) {
+    return {
+      sourceType: "meleeSwing",
+      projectile: null,
+      tags: ["melee"],
+      arrowShotId: null,
+      meleeAttackId: damageSource.meleeAttackId,
+    };
+  }
+  if (damageSource?.sourceType) {
+    return {
+      ...damageSource,
+      tags: Array.isArray(damageSource.tags) ? damageSource.tags : [],
+    };
+  }
+  return {
+    sourceType: "generic",
+    projectile: null,
+    tags: [],
+    arrowShotId: null,
+    meleeAttackId: null,
+  };
+}
+
+function computeDamageWithPerks(gameState, player, enemy, baseDamage, damageSource) {
+  const perkEngine = gameState.systems.perkEngine;
+  if (!perkEngine) {
+    return scaleDamageAgainstEnemy(player, enemy, baseDamage);
+  }
+
+  const context = createDamageContext({
+    player,
+    target: enemy,
+    baseDamage,
+    damageSource,
+    gameState,
+  });
+  const finalized = perkEngine.runTransformHook(PERK_HOOKS.onDamageCompute, context, player);
+  return Math.max(0, finalized.damage);
+}
+
+function emitEnemyHitWithPerks(gameState, player, enemy, damage, damageSource) {
+  const perkEngine = gameState.systems.perkEngine;
+  if (!perkEngine) {
+    return;
+  }
+  perkEngine.emitSideEffectHook(
+    PERK_HOOKS.onEnemyHit,
+    {
+      gameState,
+      player,
+      enemy,
+      damage,
+      damageSource: normalizeDamageSource(damageSource),
+    },
+    player
+  );
+}
+
 function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
   const weaponSystem = gameState.systems.weaponSystem;
-  const sourceProjectile = damageSource?.projectile;
-  const wasMeleeKill = damageSource?.meleeAttackId !== undefined && damageSource?.meleeAttackId !== null;
+  const normalizedDamageSource = normalizeDamageSource(damageSource);
 
-  if (sourceProjectile?.isGunBullet && player.gunKillRestoresAmmo && weaponSystem) {
-    const maxAmmo = weaponSystem.getMagazineSize(player);
-    weaponSystem.currentAmmo = Math.min(maxAmmo, weaponSystem.currentAmmo + 1);
-    if (typeof weaponSystem.showAmmoBar === "function") {
-      weaponSystem.showAmmoBar();
-    }
-  }
-
-  if (sourceProjectile?.isArrow && player.bowKillInstantReload && weaponSystem) {
-    weaponSystem.bowReloadTimer = 0;
-    if (!weaponSystem.bowCharging) {
-      weaponSystem.state = "ready";
-    }
-  }
-
-  if (wasMeleeKill && player.swordSkillCooldownOnKill) {
-    player.shoutCooldownRemaining *= 0.9;
-    player.fireballCooldownRemaining *= 0.9;
-    player.blinkCooldownRemaining *= 0.9;
-    player.blinkChargeTimer *= 0.9;
+  const perkEngine = gameState.systems.perkEngine;
+  if (perkEngine) {
+    perkEngine.emitSideEffectHook(
+      PERK_HOOKS.onEnemyKilled,
+      {
+        gameState,
+        player,
+        enemy,
+        enemyIndex,
+        weaponSystem,
+        damageSource: normalizedDamageSource,
+      },
+      player
+    );
   }
 
   if (enemy.type === "slime") {
     const protection = {};
-    if (damageSource?.meleeAttackId !== undefined) {
-      protection.meleeAttackId = damageSource.meleeAttackId;
+    if (normalizedDamageSource?.meleeAttackId !== undefined && normalizedDamageSource?.meleeAttackId !== null) {
+      protection.meleeAttackId = normalizedDamageSource.meleeAttackId;
     }
-    if (damageSource?.arrowShotId !== undefined) {
-      protection.arrowShotId = damageSource.arrowShotId;
+    if (normalizedDamageSource?.arrowShotId !== undefined && normalizedDamageSource?.arrowShotId !== null) {
+      protection.arrowShotId = normalizedDamageSource.arrowShotId;
     }
     spawnSlimeChildren(gameState, enemy, protection);
   }
@@ -207,7 +280,7 @@ function detonateFireball(gameState, fireball, playerProjectileIndex = null) {
   gameState.screenFx.hitStop = Math.max(gameState.screenFx.hitStop || 0, detonationConfig.hitStop);
   igniteTreesAt(world, fireball.x, fireball.y, fireball.splashRadius);
 
-  if (player.fireballSpawnsFireField) {
+  if (fireball.spawnFireField) {
     const ringCount = 6;
     const ringRadius = fireball.splashRadius * 0.38;
     for (let i = 0; i < ringCount; i += 1) {
@@ -236,7 +309,10 @@ function detonateFireball(gameState, fireball, playerProjectileIndex = null) {
       continue;
     }
 
-    const splashDamage = scaleDamageAgainstEnemy(player, enemy, fireball.splashDamage);
+    const splashDamage = computeDamageWithPerks(gameState, player, enemy, fireball.splashDamage, {
+      sourceType: "fireballSplash",
+      tags: ["skill", "fireball", "aoe", "fire"],
+    });
     enemy.hp -= splashDamage;
     spawnFloatingText(
       gameState,
@@ -284,7 +360,17 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         continue;
       }
 
-      if (player.meleeReflectProjectiles) {
+      const perkEngine = gameState.systems.perkEngine;
+      const reflectContext = {
+        enabled: false,
+        gameState,
+        player,
+        swing,
+      };
+      const finalizedReflectContext = perkEngine
+        ? perkEngine.runTransformHook(PERK_HOOKS.onMeleeReflectQuery, reflectContext, player)
+        : reflectContext;
+      if (finalizedReflectContext.enabled) {
         if (!swing.reflectedProjectiles) {
           swing.reflectedProjectiles = new Set();
         }
@@ -331,8 +417,17 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         if (weapon && typeof weapon.notifyMeleeSwingHit === "function") {
           weapon.notifyMeleeSwingHit(swing.attackId, swing.comboStep);
         }
-        const swingDamage = scaleDamageAgainstEnemy(player, enemy, swing.damage);
+        const swingDamage = computeDamageWithPerks(gameState, player, enemy, swing.damage, {
+          sourceType: "meleeSwing",
+          tags: ["melee"],
+          meleeAttackId: swing.attackId,
+        });
         enemy.hp -= swingDamage;
+        emitEnemyHitWithPerks(gameState, player, enemy, swingDamage, {
+          sourceType: "meleeSwing",
+          tags: ["melee"],
+          meleeAttackId: swing.attackId,
+        });
         gameState.effects.push({
           x: enemy.x,
           y: enemy.y,
@@ -410,8 +505,19 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           continue;
         }
 
-        const projectileDamage = scaleDamageAgainstEnemy(player, enemy, projectile.damage);
+        const projectileDamage = computeDamageWithPerks(gameState, player, enemy, projectile.damage, {
+          sourceType: projectile.isArrow ? "arrowProjectile" : projectile.isGunBullet ? "gunProjectile" : "playerProjectile",
+          tags: projectile.isArrow ? ["projectile", "arrow", "bow"] : projectile.isGunBullet ? ["projectile", "gun"] : ["projectile"],
+          projectile,
+          arrowShotId: projectile.isArrow ? projectile.arrowShotId : null,
+        });
         enemy.hp -= projectileDamage;
+        emitEnemyHitWithPerks(gameState, player, enemy, projectileDamage, {
+          sourceType: projectile.isArrow ? "arrowProjectile" : projectile.isGunBullet ? "gunProjectile" : "playerProjectile",
+          tags: projectile.isArrow ? ["projectile", "arrow", "bow"] : projectile.isGunBullet ? ["projectile", "gun"] : ["projectile"],
+          projectile,
+          arrowShotId: projectile.isArrow ? projectile.arrowShotId : null,
+        });
         gameState.effects.push({
           x: enemy.x,
           y: enemy.y,
@@ -462,7 +568,10 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             const adx = aoeEnemy.x - enemy.x;
             const ady = aoeEnemy.y - enemy.y;
             if (Math.hypot(adx, ady) <= player.aoeRadius) {
-              aoeEnemy.hp -= scaleDamageAgainstEnemy(player, aoeEnemy, projectileDamage * 0.25);
+              aoeEnemy.hp -= computeDamageWithPerks(gameState, player, aoeEnemy, projectileDamage * 0.25, {
+                sourceType: "aoeSplash",
+                tags: ["aoe", "projectile"],
+              });
             }
           }
         }
@@ -476,7 +585,10 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             const cdx = chainEnemy.x - enemy.x;
             const cdy = chainEnemy.y - enemy.y;
             if (Math.hypot(cdx, cdy) <= 120) {
-              chainEnemy.hp -= scaleDamageAgainstEnemy(player, chainEnemy, projectileDamage * 0.45);
+              chainEnemy.hp -= computeDamageWithPerks(gameState, player, chainEnemy, projectileDamage * 0.45, {
+                sourceType: "chainArc",
+                tags: ["chain", "projectile"],
+              });
               break;
             }
           }
@@ -587,8 +699,15 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         continue;
       }
 
-      const fireballDamage = scaleDamageAgainstEnemy(player, enemy, fireball.damage);
+      const fireballDamage = computeDamageWithPerks(gameState, player, enemy, fireball.damage, {
+        sourceType: "fireballDirect",
+        tags: ["skill", "fireball", "fire"],
+      });
       enemy.hp -= fireballDamage;
+      emitEnemyHitWithPerks(gameState, player, enemy, fireballDamage, {
+        sourceType: "fireballDirect",
+        tags: ["skill", "fireball", "fire"],
+      });
       spawnFloatingText(
         gameState,
         `-${Math.max(1, Math.round(fireballDamage))}`,
@@ -609,7 +728,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
       });
       directHit = true;
 
-      if (player.fireballDetonateOnImpact) {
+      if (fireball.detonateOnImpact) {
         detonateFireball(gameState, fireball);
       }
 

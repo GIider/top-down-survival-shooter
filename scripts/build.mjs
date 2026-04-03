@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, transform } from "esbuild";
 import { minify } from "html-minifier-terser";
+import { skillPerkCatalog } from "../src/systems/perks/skillPerkCatalog.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,171 @@ const sourceJsEntryPath = path.join(rootDir, "src", "main.js");
 const buildNumberPath = path.join(rootDir, "scripts", "build-number.json");
 const outputSourceHtmlPath = path.join(distDir, "index.source.html");
 const outputHtmlPath = path.join(distDir, "index.html");
+const outputPerksDirPath = path.join(distDir, "perks");
+const outputPerksSourceHtmlPath = path.join(outputPerksDirPath, "index.source.html");
+const outputPerksHtmlPath = path.join(outputPerksDirPath, "index.html");
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildPerkLibraryHtml(appVersion) {
+  const sorted = [...skillPerkCatalog].sort((a, b) => a.name.localeCompare(b.name));
+  const groups = new Map();
+
+  for (let i = 0; i < sorted.length; i += 1) {
+    const perk = sorted[i];
+    const tags = Array.isArray(perk.tags) ? perk.tags : ["other"];
+    for (let t = 0; t < tags.length; t += 1) {
+      const tag = tags[t];
+      if (!groups.has(tag)) {
+        groups.set(tag, []);
+      }
+      groups.get(tag).push(perk);
+    }
+  }
+
+  const navItems = [...groups.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .map((tag) => `<a href="#tag-${escapeHtml(tag)}">${escapeHtml(tag)}</a>`)
+    .join("\n");
+
+  const sections = [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([tag, perks]) => {
+      const cards = perks
+        .map(
+          (perk) => `
+<article class="perk-card">
+  <h3>${escapeHtml(perk.name)}</h3>
+  <p>${escapeHtml(perk.description)}</p>
+  <div class="meta">
+    <span class="perk-id">${escapeHtml(perk.id)}</span>
+    <span class="perk-tags">${perk.tags.map((entry) => `#${escapeHtml(entry)}`).join(" ")}</span>
+  </div>
+</article>`
+        )
+        .join("\n");
+
+      return `
+<section id="tag-${escapeHtml(tag)}" class="tag-section">
+  <h2>${escapeHtml(tag)} <span>(${perks.length})</span></h2>
+  <div class="perk-grid">
+${cards}
+  </div>
+</section>`;
+    })
+    .join("\n");
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Perk Library</title>
+    <style>
+      :root {
+        --bg: #0c1014;
+        --bg-alt: #131a20;
+        --card: #171f27;
+        --text: #e9f1f5;
+        --muted: #9eb4bf;
+        --accent: #7bf0c6;
+        --border: #22303b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at 15% -10%, #19303c 0, var(--bg) 45%), var(--bg);
+      }
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 18px 72px;
+      }
+      header {
+        margin-bottom: 18px;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: linear-gradient(120deg, rgba(123, 240, 198, 0.08), rgba(255, 255, 255, 0.02));
+      }
+      h1 { margin: 0 0 10px; font-size: 1.8rem; }
+      .sub { color: var(--muted); margin: 0; }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 14px 0 24px;
+      }
+      nav a {
+        text-decoration: none;
+        color: var(--text);
+        font-size: 0.88rem;
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--bg-alt);
+      }
+      nav a:hover { border-color: var(--accent); color: var(--accent); }
+      .tag-section { margin: 26px 0 20px; }
+      .tag-section h2 {
+        margin: 0 0 12px;
+        font-size: 1.15rem;
+        text-transform: capitalize;
+      }
+      .tag-section h2 span { color: var(--muted); font-size: 0.95rem; }
+      .perk-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 12px;
+      }
+      .perk-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .perk-card h3 { margin: 0 0 8px; font-size: 1rem; }
+      .perk-card p { margin: 0 0 10px; color: var(--muted); line-height: 1.35; font-size: 0.92rem; }
+      .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .perk-id {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 0.8rem;
+        color: #b6c9d2;
+      }
+      .perk-tags { color: var(--accent); font-size: 0.78rem; }
+      footer { margin-top: 30px; color: var(--muted); font-size: 0.84rem; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <h1>Perk Library</h1>
+        <p class="sub">Automatically generated from perk metadata. Version ${escapeHtml(appVersion)}.</p>
+      </header>
+      <nav>
+${navItems}
+      </nav>
+${sections}
+      <footer>
+        Generated during build from src/systems/perks/skillPerkCatalog.js
+      </footer>
+    </main>
+  </body>
+</html>`;
+}
 
 async function readAndBumpBuildNumber() {
   let current = 0;
@@ -86,10 +252,27 @@ async function runBuild() {
   });
 
   await mkdir(distDir, { recursive: true });
+  await mkdir(outputPerksDirPath, { recursive: true });
+
+  const perksSourceHtml = buildPerkLibraryHtml(appVersion);
+  const perksHtml = await minify(perksSourceHtml, {
+    collapseWhitespace: true,
+    removeComments: true,
+    removeRedundantAttributes: true,
+    removeOptionalTags: false,
+    removeEmptyAttributes: true,
+    minifyCSS: true,
+    minifyJS: true,
+    useShortDoctype: true,
+    keepClosingSlash: true,
+  });
+
   await writeFile(outputSourceHtmlPath, composedHtml, "utf8");
   await writeFile(outputHtmlPath, minifiedHtml, "utf8");
+  await writeFile(outputPerksSourceHtmlPath, perksSourceHtml, "utf8");
+  await writeFile(outputPerksHtmlPath, perksHtml, "utf8");
 
-  console.log(`Build complete: dist/index.source.html + dist/index.html (version ${appVersion})`);
+  console.log(`Build complete: dist/index.source.html + dist/index.html + dist/perks/index.html (version ${appVersion})`);
 }
 
 runBuild().catch((error) => {

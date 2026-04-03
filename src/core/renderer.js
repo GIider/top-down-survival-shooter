@@ -1,6 +1,7 @@
 import { CANVAS } from "./constants.js";
 import { renderControlsLegendPanel, renderPickupLegendPanel, renderTitleHistoryPanel } from "./render/panels.js";
 import { renderPauseOverlay, renderPerkLibraryOverlay, renderTitleScreen } from "./render/titleOverlays.js";
+import { PERK_HOOKS } from "../systems/perks/contracts.js";
 import { getVisibleObstacles } from "../systems/worldSystem.js";
 
 const IS_DEBUG_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
@@ -677,6 +678,7 @@ export function createRenderer(canvas, gameState) {
 
   function renderWeaponReticle() {
     const weapon = gameState.systems.weaponSystem;
+    const perkEngine = gameState.systems.perkEngine;
     const player = gameState.player;
     const aim = player.aim;
     if (!weapon || !aim) {
@@ -688,9 +690,18 @@ export function createRenderer(canvas, gameState) {
     const angle = Math.atan2(dy, dx);
     const aimDistance = Math.hypot(dx, dy);
 
-    const laserAllowed =
-      player.weaponLaserPointer &&
-      ((weapon.isGunSelected && weapon.isGunSelected()) || (weapon.isBowSelected && weapon.isBowSelected()));
+    const weaponType = weapon.isGunSelected && weapon.isGunSelected() ? "gun" : weapon.isBowSelected && weapon.isBowSelected() ? "bow" : "other";
+    const laserContext = {
+      enableLaser: false,
+      weaponType,
+      player,
+      weapon,
+      gameState,
+    };
+    const finalizedLaserContext = perkEngine
+      ? perkEngine.runTransformHook(PERK_HOOKS.onRenderReticleCompute, laserContext, player)
+      : laserContext;
+    const laserAllowed = finalizedLaserContext.enableLaser;
     if (laserAllowed) {
       const maxLen = 900;
       const length = Math.min(maxLen, aimDistance);

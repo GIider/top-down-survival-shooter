@@ -19,9 +19,8 @@ export function getPlayerDamageMultiplier(player) {
 }
 
 export function scaleDamageAgainstEnemy(player, enemy, damage) {
-  if ((enemy?.stunnedTimer || 0) > 0) {
-    return damage * (player.stunnedTargetDamageMultiplier ?? 1);
-  }
+  void player;
+  void enemy;
   return damage;
 }
 

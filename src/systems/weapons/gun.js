@@ -24,7 +24,7 @@ export function createGunProjectile(player, target, spread, angleOffset = 0) {
     color: crit ? "#fff38f" : "#ffd166",
     modifiers: [],
     isGunBullet: true,
-    bounceRemaining: player.gunBulletBounces ? 3 : 0,
+    bounceRemaining: 0,
     hitEnemies: new Set(),
   });
 }
