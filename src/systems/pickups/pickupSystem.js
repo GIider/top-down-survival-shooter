@@ -172,6 +172,29 @@ function updateNukeWaves(gameState, dt) {
       gameState.enemies.splice(enemyIndex, 1);
     }
 
+    for (let projectileIndex = gameState.projectiles.length - 1; projectileIndex >= 0; projectileIndex -= 1) {
+      const projectile = gameState.projectiles[projectileIndex];
+      if (projectile.owner !== "enemy") {
+        continue;
+      }
+
+      const distance = Math.hypot(projectile.position.x - wave.x, projectile.position.y - wave.y);
+      if (distance > wave.radius + (projectile.radius || 0)) {
+        continue;
+      }
+
+      gameState.effects.push({
+        x: projectile.position.x,
+        y: projectile.position.y,
+        radius: Math.max(6, (projectile.radius || 3) * 1.8),
+        elapsed: 0,
+        duration: 0.16,
+        growth: 14,
+        color: "255, 215, 156",
+      });
+      gameState.projectiles.splice(projectileIndex, 1);
+    }
+
     gameState.indicators = gameState.indicators.filter((indicator) => {
       if (indicator.source !== "mortar") {
         return true;
