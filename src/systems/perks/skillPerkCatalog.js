@@ -54,6 +54,16 @@ export const skillPerkCatalog = [
     },
   },
   {
+    id: "blink-sword-kensei",
+    name: "Kensei",
+    description:
+      "Blinking through enemies with your sword equipped damages them as a sword strike without advancing combo.",
+    tags: ["blink", "melee"],
+    apply(player) {
+      player.blinkSwordStrike = true;
+    },
+  },
+  {
     id: "blink-three-charges",
     name: "Triple Blink",
     description: "Blink gains 3 charges and regenerates one per cooldown.",
@@ -93,6 +103,24 @@ export const skillPerkCatalog = [
     },
   },
   {
+    id: "shout-half-max-hp",
+    name: "Thunder Lungs",
+    description: "Shout deals 50% of each affected enemy's max HP as damage.",
+    tags: ["shout"],
+    apply(player) {
+      player.shoutDealsHalfMaxHp = true;
+    },
+  },
+  {
+    id: "shout-heal-per-enemy",
+    name: "War Cry Renewal",
+    description: "Shout heals 10 HP for each enemy affected.",
+    tags: ["shout", "survival"],
+    apply(player) {
+      player.shoutHealsPerEnemy = true;
+    },
+  },
+  {
     id: "fireball-impact-detonation",
     name: "Impact Burst",
     description: "Fireball detonates on enemy impact.",
@@ -127,6 +155,15 @@ export const skillPerkCatalog = [
     tags: ["gun"],
     apply(player) {
       player.gunTripleShot = true;
+    },
+  },
+  {
+    id: "gun-backward-shot",
+    name: "Crossfire Drill",
+    description: "Gun also fires backward.",
+    tags: ["gun"],
+    apply(player) {
+      player.gunBackwardShot = true;
     },
   },
   {
@@ -211,6 +248,15 @@ export const skillPerkCatalog = [
     },
   },
   {
+    id: "bow-fire-arrows",
+    name: "Kindled Fletching",
+    description: "Arrows deal 25% extra damage and ignite trees.",
+    tags: ["bow", "fire"],
+    apply(player) {
+      player.bowFireArrows = true;
+    },
+  },
+  {
     id: "shared-laser-pointer",
     name: "Laserpointer",
     description: "Gun and bow draw a targeting laser toward your aim.",
@@ -235,6 +281,24 @@ export const skillPerkCatalog = [
     tags: ["utility"],
     apply(player) {
       player.pickupGlobalCooldownMultiplier *= 0.8;
+    },
+  },
+  {
+    id: "utility-stunned-target-damage",
+    name: "Execution Momentum",
+    description: "Deal 50% more damage to stunned enemies.",
+    tags: ["utility"],
+    apply(player) {
+      player.stunnedTargetDamageMultiplier *= 1.5;
+    },
+  },
+  {
+    id: "utility-regen-half-hp",
+    name: "Second Wind",
+    description: "Slowly regenerate HP up to 50% max HP.",
+    tags: ["utility", "survival"],
+    apply(player) {
+      player.regenToHalfMaxHpPerSecond += 0.03;
     },
   },
 ];

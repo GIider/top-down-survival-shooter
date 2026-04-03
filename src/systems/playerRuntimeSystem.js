@@ -2,10 +2,17 @@ import { GAME_CONFIG } from "../core/constants.js";
 
 export function updatePlayerRuntime(gameState, dt) {
   const player = gameState.player;
+  const maxHp = player.maxHp + player.maxHpBonus;
+  const regenCap = maxHp * 0.5;
+
   player.perfectReloadMoveBoostTimer = Math.max(0, player.perfectReloadMoveBoostTimer - dt);
   player.moveSpeedTemporaryMultiplier = player.perfectReloadMoveBoostTimer > 0 ? 1.1 : 1;
   player.shoutCooldownRemaining = Math.max(0, player.shoutCooldownRemaining - dt);
   player.fireballCooldownRemaining = Math.max(0, player.fireballCooldownRemaining - dt);
+
+  if (player.regenToHalfMaxHpPerSecond > 0 && player.hp < regenCap) {
+    player.hp = Math.min(regenCap, player.hp + maxHp * player.regenToHalfMaxHpPerSecond * dt);
+  }
 }
 
 export function applyPendingLevelUps(gameState, eventBus = null) {

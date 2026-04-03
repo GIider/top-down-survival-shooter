@@ -1,5 +1,5 @@
 import { BALANCE, GAME_CONFIG } from "../core/constants.js";
-import { getPlayerDamageMultiplier } from "../entities/player.js";
+import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../entities/player.js";
 import { createEnemy } from "../entities/enemy.js";
 import { maybeSpawnPickupOnEnemyDeath } from "./pickups/index.js";
 import { getTreeEffectsAt, igniteTreesAt } from "./worldSystem.js";
@@ -236,10 +236,11 @@ function detonateFireball(gameState, fireball, playerProjectileIndex = null) {
       continue;
     }
 
-    enemy.hp -= fireball.splashDamage;
+    const splashDamage = scaleDamageAgainstEnemy(player, enemy, fireball.splashDamage);
+    enemy.hp -= splashDamage;
     spawnFloatingText(
       gameState,
-      `-${Math.max(1, Math.round(fireball.splashDamage))}`,
+      `-${Math.max(1, Math.round(splashDamage))}`,
       enemy.x,
       enemy.y - enemy.radius - 4,
       "255,196,120",
@@ -330,7 +331,8 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         if (weapon && typeof weapon.notifyMeleeSwingHit === "function") {
           weapon.notifyMeleeSwingHit(swing.attackId, swing.comboStep);
         }
-        enemy.hp -= swing.damage;
+        const swingDamage = scaleDamageAgainstEnemy(player, enemy, swing.damage);
+        enemy.hp -= swingDamage;
         gameState.effects.push({
           x: enemy.x,
           y: enemy.y,
@@ -342,7 +344,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         });
         spawnFloatingText(
           gameState,
-          `-${Math.max(1, Math.round(swing.damage))}`,
+          `-${Math.max(1, Math.round(swingDamage))}`,
           enemy.x,
           enemy.y - enemy.radius - 4,
           "255,214,168",
@@ -357,7 +359,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           killEnemy(gameState, enemy, e, { meleeAttackId: swing.attackId }, player);
           if (player.lifeSteal > 0) {
             const maxHp = player.maxHp + player.maxHpBonus;
-            player.hp = Math.min(maxHp, player.hp + swing.damage * player.lifeSteal * 0.08);
+            player.hp = Math.min(maxHp, player.hp + swingDamage * player.lifeSteal * 0.08);
           }
         }
       }
@@ -408,7 +410,8 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           continue;
         }
 
-        enemy.hp -= projectile.damage;
+        const projectileDamage = scaleDamageAgainstEnemy(player, enemy, projectile.damage);
+        enemy.hp -= projectileDamage;
         gameState.effects.push({
           x: enemy.x,
           y: enemy.y,
@@ -423,7 +426,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         }
         spawnFloatingText(
           gameState,
-          `-${Math.max(1, Math.round(projectile.damage))}`,
+          `-${Math.max(1, Math.round(projectileDamage))}`,
           enemy.x,
           enemy.y - enemy.radius - 4,
           "255,214,168",
@@ -449,7 +452,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           );
           if (player.lifeSteal > 0) {
             const maxHp = player.maxHp + player.maxHpBonus;
-            player.hp = Math.min(maxHp, player.hp + projectile.damage * player.lifeSteal * 0.08);
+            player.hp = Math.min(maxHp, player.hp + projectileDamage * player.lifeSteal * 0.08);
           }
         }
 
@@ -459,7 +462,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             const adx = aoeEnemy.x - enemy.x;
             const ady = aoeEnemy.y - enemy.y;
             if (Math.hypot(adx, ady) <= player.aoeRadius) {
-              aoeEnemy.hp -= projectile.damage * 0.25;
+              aoeEnemy.hp -= scaleDamageAgainstEnemy(player, aoeEnemy, projectileDamage * 0.25);
             }
           }
         }
@@ -473,7 +476,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             const cdx = chainEnemy.x - enemy.x;
             const cdy = chainEnemy.y - enemy.y;
             if (Math.hypot(cdx, cdy) <= 120) {
-              chainEnemy.hp -= projectile.damage * 0.45;
+              chainEnemy.hp -= scaleDamageAgainstEnemy(player, chainEnemy, projectileDamage * 0.45);
               break;
             }
           }
@@ -584,10 +587,11 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         continue;
       }
 
-      enemy.hp -= fireball.damage;
+      const fireballDamage = scaleDamageAgainstEnemy(player, enemy, fireball.damage);
+      enemy.hp -= fireballDamage;
       spawnFloatingText(
         gameState,
-        `-${Math.max(1, Math.round(fireball.damage))}`,
+        `-${Math.max(1, Math.round(fireballDamage))}`,
         enemy.x,
         enemy.y - enemy.radius - 4,
         "255,214,168",
@@ -650,6 +654,14 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     if (enemy.hp <= 0) {
       killEnemy(gameState, enemy, e, {}, player);
     }
+  }
+
+  for (let e = gameState.enemies.length - 1; e >= 0; e -= 1) {
+    const enemy = gameState.enemies[e];
+    if (enemy.isRespawning || enemy.hp > 0) {
+      continue;
+    }
+    killEnemy(gameState, enemy, e, {}, player);
   }
 
   const playerTreeEffects = getTreeEffectsAt(world, player.x, player.y, player.radius);

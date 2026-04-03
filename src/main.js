@@ -120,6 +120,10 @@ function markPerkActivated(perkId) {
 }
 
 function recordRunResult() {
+  if (isDebugMode) {
+    return;
+  }
+
   if (gameState.runStats.recorded || gameState.runStats.startedAt <= 0) {
     return;
   }
@@ -249,9 +253,10 @@ function choosePerkByPointer() {
     const rect = player.perkRerollRect;
     const clickedReroll = x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
     if (clickedReroll) {
-      player.perkChoices = getPerkChoices(player);
+      const excludedIds = player.perkChoices.map((perk) => perk.id);
+      player.perkChoices = getPerkChoices(player, excludedIds);
       markPerksSeen(player.perkChoices);
-      player.perkRerollAvailable = false;
+      player.perkRerollAvailable = isDebugMode ? true : false;
       player.perkRerollAnimationTimer = 0.28;
       player.perkSelectionLockTimer = PERK_SELECTION_LOCK_DURATION;
       return true;
@@ -408,6 +413,14 @@ function update(dt) {
 
   updateBlinkCharges(services, dt);
   updatePlayerRuntime(gameState, dt);
+  if (debugSystem.isNoCooldownsEnabled()) {
+    const player = gameState.player;
+    player.shoutCooldownRemaining = 0;
+    player.fireballCooldownRemaining = 0;
+    player.blinkChargeTimer = 0;
+    player.blinkCooldownRemaining = 0;
+    player.blinkCharges = player.blinkMaxCharges;
+  }
 
   const worldPointer = {
     x: gameState.player.x + (input.pointer.x - canvas.width * 0.5),

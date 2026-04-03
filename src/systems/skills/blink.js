@@ -1,8 +1,57 @@
 import { GAME_CONFIG } from "../../core/constants.js";
-import { getPlayerDamageMultiplier } from "../../entities/player.js";
+import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../../entities/player.js";
 import { igniteTreesAt, resolvePositionAgainstMountains } from "../worldSystem.js";
+import { getMeleeConfig } from "../weapons/index.js";
 
 const BLINK_CONFIG = GAME_CONFIG.skills.blink;
+const MELEE_CONFIG = getMeleeConfig();
+const KENSEI_DAMAGE_MULTIPLIER = 2;
+const KENSEI_HIT_RADIUS_BONUS = 24;
+
+function distancePointToSegment(px, py, ax, ay, bx, by) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const abLenSq = abx * abx + aby * aby;
+  if (abLenSq <= 0.000001) {
+    return Math.hypot(px - ax, py - ay);
+  }
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / abLenSq));
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  return Math.hypot(px - cx, py - cy);
+}
+
+function applyBlinkSwordStrike(gameState, weaponSystem, fromX, fromY, toX, toY) {
+  const player = gameState.player;
+  const comboIndex = weaponSystem.comboIndex ?? 0;
+  const comboConfig = MELEE_CONFIG.combo[comboIndex] || MELEE_CONFIG.combo[0];
+  const damage = comboConfig.damage * getPlayerDamageMultiplier(player) * KENSEI_DAMAGE_MULTIPLIER;
+
+  for (let index = gameState.enemies.length - 1; index >= 0; index -= 1) {
+    const enemy = gameState.enemies[index];
+    if (enemy.isRespawning) {
+      continue;
+    }
+
+    const distance = distancePointToSegment(enemy.x, enemy.y, fromX, fromY, toX, toY);
+    if (distance > enemy.radius + player.radius + KENSEI_HIT_RADIUS_BONUS) {
+      continue;
+    }
+
+    enemy.hp -= scaleDamageAgainstEnemy(player, enemy, damage);
+    gameState.effects.push({
+      x: enemy.x,
+      y: enemy.y,
+      radius: Math.max(10, enemy.radius * 0.5),
+      elapsed: 0,
+      duration: 0.2,
+      growth: 20,
+      color: "152, 255, 214",
+    });
+  }
+}
 
 function applyBlinkExplosion(gameState, x, y) {
   const player = gameState.player;
@@ -141,6 +190,9 @@ export function tryBlink(services, worldPointer) {
   }
   if (player.blinkLeavesIceTrail) {
     spawnBlinkTrail(gameState, sourceX, sourceY, player.x, player.y, "ice");
+  }
+  if (player.blinkSwordStrike && weaponSystem.isMeleeSelected()) {
+    applyBlinkSwordStrike(gameState, weaponSystem, sourceX, sourceY, player.x, player.y);
   }
 
   return true;

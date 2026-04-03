@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from "../core/constants.js";
 import { createEnemy } from "../entities/enemy.js";
+import { PICKUP_POOL } from "./pickups/pickupCatalog.js";
 
 function spawnDebugEnemy(services, type) {
   const gameState = services.gameState;
@@ -21,11 +22,37 @@ function applyDebugLevelUp(services) {
   player.xpToNext = Math.floor(player.xpToNext * GAME_CONFIG.player.levelUpXpMultiplier);
 }
 
+function spawnDebugPickups(services) {
+  const gameState = services.gameState;
+  const player = gameState.player;
+  const radius = 84;
+  const count = PICKUP_POOL.length;
+
+  for (let index = 0; index < count; index += 1) {
+    const def = PICKUP_POOL[index];
+    const angle = (Math.PI * 2 * index) / count;
+    gameState.drops.push({
+      type: def.type,
+      icon: def.icon,
+      color: def.color,
+      radius: def.radius,
+      lifetime: def.lifetime,
+      position: {
+        x: player.x + Math.cos(angle) * radius,
+        y: player.y + Math.sin(angle) * radius,
+      },
+    });
+  }
+}
+
 export function createDebugSystem(services) {
   const debugControls = services.document.getElementById("debug-controls");
   const debugDirectorToggle = services.document.getElementById("debug-director-toggle");
+  const debugNoCooldownsToggle = services.document.getElementById("debug-no-cooldowns-toggle");
   const debugLevelUpButton = services.document.getElementById("debug-level-up");
+  const debugSpawnPickupsButton = services.document.getElementById("debug-spawn-pickups");
   let debugDirectorEnabled = false;
+  let debugNoCooldownsEnabled = false;
 
   if (services.isDebugMode && debugControls) {
     debugControls.hidden = false;
@@ -34,6 +61,13 @@ export function createDebugSystem(services) {
       debugDirectorToggle.checked = false;
       debugDirectorToggle.addEventListener("change", () => {
         debugDirectorEnabled = debugDirectorToggle.checked;
+      });
+    }
+
+    if (debugNoCooldownsToggle) {
+      debugNoCooldownsToggle.checked = false;
+      debugNoCooldownsToggle.addEventListener("change", () => {
+        debugNoCooldownsEnabled = debugNoCooldownsToggle.checked;
       });
     }
 
@@ -52,6 +86,12 @@ export function createDebugSystem(services) {
         applyDebugLevelUp(services);
       });
     }
+
+    if (debugSpawnPickupsButton) {
+      debugSpawnPickupsButton.addEventListener("click", () => {
+        spawnDebugPickups(services);
+      });
+    }
   }
 
   return {
@@ -64,6 +104,9 @@ export function createDebugSystem(services) {
     },
     isDirectorEnabled() {
       return debugDirectorEnabled;
+    },
+    isNoCooldownsEnabled() {
+      return debugNoCooldownsEnabled;
     },
   };
 }

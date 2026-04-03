@@ -26,7 +26,11 @@ export function getBowStrength(ratio) {
 
 export function createBowProjectile(player, angle, chargeRatio, arrowShotId) {
   const { strength, isPerfect } = getBowStrength(chargeRatio);
-  const damage = (BOW_CONFIG.minDamage + (BOW_CONFIG.maxDamage - BOW_CONFIG.minDamage) * strength) * getPlayerDamageMultiplier(player);
+  const damageMultiplier = player.bowFireArrows ? 1.25 : 1;
+  const damage =
+    (BOW_CONFIG.minDamage + (BOW_CONFIG.maxDamage - BOW_CONFIG.minDamage) * strength) *
+    getPlayerDamageMultiplier(player) *
+    damageMultiplier;
   const speed = (BOW_CONFIG.minSpeed + (BOW_CONFIG.maxSpeed - BOW_CONFIG.minSpeed) * strength) * player.projectileSpeedMultiplier;
   const ricochetEnabled = !!player.bowRicochetToClosestEnemy && isPerfect;
 
@@ -45,6 +49,7 @@ export function createBowProjectile(player, angle, chargeRatio, arrowShotId) {
     pierceRemaining: ricochetEnabled ? 0 : isPerfect ? BOW_CONFIG.perfectPierce : 0,
     hitEnemies: new Set(),
     isArrow: true,
+    isFireArrow: !!player.bowFireArrows,
     arrowShotId,
     ricochetRemaining: ricochetEnabled ? 5 : 0,
   });

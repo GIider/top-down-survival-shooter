@@ -12,8 +12,9 @@ function pickRandom(pool) {
   return pool[index];
 }
 
-export function getPerkChoices(player) {
-  const pool = allPerks.filter((perk) => !player.ownedPerkIds.has(perk.id));
+export function getPerkChoices(player, excludedPerkIds = []) {
+  const excluded = new Set(excludedPerkIds);
+  const pool = allPerks.filter((perk) => !player.ownedPerkIds.has(perk.id) && !excluded.has(perk.id));
   const selected = [];
   const remaining = [...pool];
 

@@ -3,6 +3,8 @@ import { renderControlsLegendPanel, renderPickupLegendPanel, renderTitleHistoryP
 import { renderPauseOverlay, renderPerkLibraryOverlay, renderTitleScreen } from "./render/titleOverlays.js";
 import { getVisibleObstacles } from "../systems/worldSystem.js";
 
+const IS_DEBUG_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
+
 function drawBar(ctx, x, y, width, height, value, max, fill, background = "rgba(255,255,255,0.12)") {
   ctx.fillStyle = background;
   ctx.fillRect(x, y, width, height);
@@ -967,7 +969,13 @@ export function createRenderer(canvas, gameState) {
     ctx.font = "bold 14px monospace";
     ctx.textBaseline = "middle";
     ctx.fillText(
-      selectionLocked ? `Unlocking ${player.perkSelectionLockTimer.toFixed(1)}s` : rerollEnabled ? "Reroll (1 left)" : "Reroll used",
+      selectionLocked
+        ? `Unlocking ${player.perkSelectionLockTimer.toFixed(1)}s`
+        : rerollEnabled
+          ? IS_DEBUG_MODE
+            ? "Reroll (infinite)"
+            : "Reroll (1 left)"
+          : "Reroll used",
       canvas.width * 0.5,
       rerollY + rerollHeight * 0.5 + 1
     );

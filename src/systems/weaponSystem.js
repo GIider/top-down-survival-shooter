@@ -241,13 +241,23 @@ export class Weapon {
     }
 
     const spread = this.spread * player.spreadMultiplier;
+    const reverseTarget = {
+      x: player.x - (target.x - player.x),
+      y: player.y - (target.y - player.y),
+    };
     if (player.gunTripleShot) {
       const offsets = [-0.14, 0, 0.14];
       for (let index = 0; index < offsets.length; index += 1) {
         projectileList.push(createGunProjectile(player, target, spread, offsets[index]));
+        if (player.gunBackwardShot) {
+          projectileList.push(createGunProjectile(player, reverseTarget, spread, offsets[index]));
+        }
       }
     } else {
       projectileList.push(createGunProjectile(player, target, spread));
+      if (player.gunBackwardShot) {
+        projectileList.push(createGunProjectile(player, reverseTarget, spread));
+      }
     }
     if (!hasInfiniteAmmo) {
       this.currentAmmo -= 1;

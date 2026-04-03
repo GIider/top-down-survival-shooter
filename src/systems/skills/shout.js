@@ -121,6 +121,13 @@ export function updateShoutWaves(services, dt) {
       if (distance <= radius + enemy.radius + wave.thickness * 0.25) {
         wave.stunnedEnemies.add(enemy);
         enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, SHOUT_CONFIG.stunDuration + player.shoutStunDurationBonus);
+        if (player.shoutDealsHalfMaxHp) {
+          enemy.hp -= enemy.maxHp * 0.5;
+        }
+        if (player.shoutHealsPerEnemy) {
+          const maxHp = player.maxHp + player.maxHpBonus;
+          player.hp = Math.min(maxHp, player.hp + 10);
+        }
         gameState.effects.push({
           x: enemy.x,
           y: enemy.y,

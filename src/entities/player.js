@@ -18,6 +18,13 @@ export function getPlayerDamageMultiplier(player) {
   return (player.damageMultiplier ?? 1) * (player.pickupDamageMultiplier ?? 1);
 }
 
+export function scaleDamageAgainstEnemy(player, enemy, damage) {
+  if ((enemy?.stunnedTimer || 0) > 0) {
+    return damage * (player.stunnedTargetDamageMultiplier ?? 1);
+  }
+  return damage;
+}
+
 export function gainXp(player, amount) {
   player.xp += amount;
 

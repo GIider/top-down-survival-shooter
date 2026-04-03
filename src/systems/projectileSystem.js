@@ -1,5 +1,5 @@
 import { updateProjectile } from "../entities/projectile.js";
-import { getMountainCollisionNormal, isProjectileBlockedByMountain } from "./worldSystem.js";
+import { getMountainCollisionNormal, igniteTreesAt, isProjectileBlockedByMountain } from "./worldSystem.js";
 
 export function updateProjectiles(services, dt) {
   const gameState = services.gameState;
@@ -13,6 +13,9 @@ export function updateProjectiles(services, dt) {
   for (let index = gameState.projectiles.length - 1; index >= 0; index -= 1) {
     const projectile = gameState.projectiles[index];
     updateProjectile(projectile, dt);
+    if (projectile.owner === "player" && projectile.isFireArrow) {
+      igniteTreesAt(world, projectile.position.x, projectile.position.y, projectile.radius + 6);
+    }
     if (isProjectileBlockedByMountain(world, projectile.position.x, projectile.position.y, projectile.radius)) {
       if (projectile.owner === "player" && projectile.bounceRemaining > 0) {
         const collision = getMountainCollisionNormal(world, projectile.position.x, projectile.position.y, projectile.radius);
