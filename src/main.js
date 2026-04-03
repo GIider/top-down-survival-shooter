@@ -84,10 +84,16 @@ function applyFreshState(freshState) {
 }
 
 function persistPerkProgress() {
+  if (isDebugMode) {
+    return;
+  }
   savePerkProgress(gameState.perkProgress);
 }
 
 function markPerkSeen(perkId) {
+  if (isDebugMode) {
+    return;
+  }
   if (gameState.perkProgress.seen[perkId]) {
     return;
   }
@@ -96,6 +102,9 @@ function markPerkSeen(perkId) {
 }
 
 function markPerksSeen(perks) {
+  if (isDebugMode) {
+    return;
+  }
   let changed = false;
   for (let i = 0; i < perks.length; i += 1) {
     const id = perks[i]?.id;
@@ -111,6 +120,9 @@ function markPerksSeen(perks) {
 }
 
 function markPerkActivated(perkId) {
+  if (isDebugMode) {
+    return;
+  }
   if (gameState.perkProgress.activated[perkId]) {
     return;
   }
