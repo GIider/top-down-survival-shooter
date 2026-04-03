@@ -2,17 +2,19 @@
 
 A browser-based top-down survival shooter built with JavaScript and bundled into a single deployable HTML file.
 
-## Play the latest version
-
 https://giider.github.io/top-down-survival-shooter/
 
-Perk library page (spoilers):
+## Play the latest version
+
+https://giider.github.io/top-down-survival-shooter/game.html
+
+### Perk library page (spoilers)
 
 https://giider.github.io/top-down-survival-shooter/perks/
 
 ### Debug Mode
 
-Debug mode can be accessed by adding `?debug=1` to the URL: https://giider.github.io/top-down-survival-shooter?debug=1
+Debug mode can be accessed by adding `?debug=1` to the URL: https://giider.github.io/top-down-survival-shooter/game.html?debug=1
 
 ## Project structure
 
