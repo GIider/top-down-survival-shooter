@@ -3,18 +3,29 @@ import { skillPerkCatalog } from "../../systems/perks/skillPerkCatalog.js";
 
 export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) {
   const ui = GAME_CONFIG.ui.perkLibrary;
-  const seenTags = new Set();
+  const totalPerks = skillPerkCatalog.length;
+  let seenCount = 0;
+  let acquiredCount = 0;
   for (let i = 0; i < skillPerkCatalog.length; i += 1) {
     const perk = skillPerkCatalog[i];
-    if (!gameState.perkProgress.seen[perk.id]) {
-      continue;
+    if (gameState.perkProgress.seen[perk.id]) {
+      seenCount += 1;
     }
+    if (gameState.perkProgress.activated[perk.id]) {
+      acquiredCount += 1;
+    }
+  }
+  const notSeenCount = Math.max(0, totalPerks - seenCount);
+
+  const allTags = new Set();
+  for (let i = 0; i < skillPerkCatalog.length; i += 1) {
+    const perk = skillPerkCatalog[i];
     for (let tagIndex = 0; tagIndex < (perk.tags || []).length; tagIndex += 1) {
-      seenTags.add(perk.tags[tagIndex]);
+      allTags.add(perk.tags[tagIndex]);
     }
   }
 
-  const filterOptions = ["all", ...Array.from(seenTags).sort()];
+  const filterOptions = ["all", ...Array.from(allTags).sort()];
   if (!filterOptions.includes(gameState.titlePerkLibraryFilter)) {
     gameState.titlePerkLibraryFilter = "all";
   }
@@ -65,6 +76,16 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("Close", closeRect.x + closeRect.width * 0.5, closeRect.y + closeRect.height * 0.5 + 1);
+
+  ctx.fillStyle = "#9ec5da";
+  ctx.font = "11px monospace";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(
+    `Acquired: ${acquiredCount}   Seen: ${seenCount}   Not Seen: ${notSeenCount}`,
+    closeRect.x - 16,
+    modalY + 40
+  );
 
   const filterRect = {
     x: modalX + ui.filter.x,
@@ -152,7 +173,7 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines) 
       ctx.fillText("????????????????", modalX + 34, cardY + 22);
       ctx.fillStyle = "#8f97aa";
       ctx.font = "11px monospace";
-      ctx.fillText("Tags: ???", modalX + 34, cardY + 42);
+      ctx.fillText(`Tags: ${(perk.tags || []).join(", ")}`, modalX + 34, cardY + 42);
       continue;
     }
 
