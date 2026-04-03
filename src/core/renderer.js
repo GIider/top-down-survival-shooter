@@ -956,6 +956,16 @@ export function createRenderer(canvas, gameState) {
     gameState.effects.forEach((effect) => {
       const alpha = 1 - effect.elapsed / effect.duration;
       const color = effect.color || "255, 220, 120";
+      if (effect.kind === "particle") {
+        const growth = effect.growth ?? 0;
+        const radius = Math.max(0.4, effect.radius + effect.elapsed * growth);
+        ctx.fillStyle = `rgba(${color}, ${Math.max(0, alpha)})`;
+        ctx.beginPath();
+        ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
       const growth = effect.growth ?? 18;
       ctx.strokeStyle = `rgba(${color}, ${alpha})`;
       ctx.lineWidth = 2;

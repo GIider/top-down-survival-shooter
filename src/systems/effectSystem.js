@@ -1,6 +1,17 @@
 export function updateEffects(gameState, dt) {
   for (let index = gameState.effects.length - 1; index >= 0; index -= 1) {
     const effect = gameState.effects[index];
+    if (typeof effect.vx === "number" || typeof effect.vy === "number") {
+      effect.x += (effect.vx || 0) * dt;
+      effect.y += (effect.vy || 0) * dt;
+
+      if (effect.drag) {
+        const damping = Math.max(0, 1 - effect.drag * dt);
+        effect.vx = (effect.vx || 0) * damping;
+        effect.vy = (effect.vy || 0) * damping;
+      }
+    }
+
     effect.elapsed += dt;
     if (effect.elapsed >= effect.duration) {
       gameState.effects.splice(index, 1);

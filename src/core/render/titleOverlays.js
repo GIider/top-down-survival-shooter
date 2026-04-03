@@ -8,14 +8,19 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines, 
   let acquiredCount = 0;
   for (let i = 0; i < skillPerkCatalog.length; i += 1) {
     const perk = skillPerkCatalog[i];
-    if (isDebugMode || gameState.perkProgress.seen[perk.id]) {
+    const acquired = isDebugMode || !!gameState.perkProgress.activated[perk.id];
+    const seen = isDebugMode || !!gameState.perkProgress.seen[perk.id];
+
+    if (acquired) {
+      acquiredCount += 1;
+      continue;
+    }
+
+    if (seen) {
       seenCount += 1;
     }
-    if (isDebugMode || gameState.perkProgress.activated[perk.id]) {
-      acquiredCount += 1;
-    }
   }
-  const notSeenCount = Math.max(0, totalPerks - seenCount);
+  const notSeenCount = Math.max(0, totalPerks - acquiredCount - seenCount);
 
   const allTags = new Set();
   for (let i = 0; i < skillPerkCatalog.length; i += 1) {
