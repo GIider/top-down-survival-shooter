@@ -1,43 +1,83 @@
-# Top-Down Survival Shooter
+# 🎮 Top-Down Survival Shooter
 
 A browser-based top-down survival shooter built with JavaScript and bundled into a single deployable HTML file.
 
+👉 Play now:  
 https://giider.github.io/top-down-survival-shooter/
 
-## Play the latest version
+---
 
-https://giider.github.io/top-down-survival-shooter/game.html
+## 🚀 Quick Access
 
-### Perk library page (spoilers)
+- **Play latest version**  
+  https://giider.github.io/top-down-survival-shooter/game.html
 
-https://giider.github.io/top-down-survival-shooter/perks/
+- **Perk library (⚠ spoilers)**  
+  https://giider.github.io/top-down-survival-shooter/perk-library.html
 
-### Debug Mode
+---
 
-Debug mode can be accessed by adding `?debug=1` to the URL: https://giider.github.io/top-down-survival-shooter/game.html?debug=1
+## 🛠 Debug Mode
 
-## Project structure
+Enable debug mode by appending the query parameter:
 
-- `src/` - Game source code (entities, systems, rendering, config)
-- `scripts/build.mjs` - Build pipeline for producing the release artifact
-- `dist/` - Build output
+```
 
-## Requirements
+?debug=1
 
-- Node.js
-- npm
+```
 
-## Build
+**Example:**  
+https://giider.github.io/top-down-survival-shooter/game.html?debug=1
+
+---
+
+## 📁 Project Structure
+
+```
+
+src/                # Game source (entities, systems, rendering, config)
+scripts/build.mjs   # Build pipeline
+dist/               # Generated output
+
+````
+
+---
+
+## 📦 Requirements
+
+- Node.js  
+- npm  
+
+---
+
+## 🔧 Build
 
 ```bash
 npm ci
 npm run test:regression
 npm run build
-```
+````
 
-The build output is written to `dist/index.html`.
-The generated perk library page is written to `dist/perks/index.html`.
+**Output:**
 
-## Release and deployment
+* Game: `dist/index.html`
+* Perk library: `dist/perks/index.html`
 
-GitHub Actions runs regression tests, builds on pushes to `main`, creates/updates a `latest` release artifact, and deploys the full `dist/` output (including `perks/`) to GitHub Pages.
+---
+
+## 🚀 Deployment
+
+Deployment is fully automated via GitHub Actions:
+
+* Runs regression tests
+* Builds on every push to `main`
+* Updates the `latest` release artifact
+* Deploys `dist/` (including `perks/`) to GitHub Pages
+
+---
+
+## 🧠 Notes
+
+* The entire game is bundled into a single HTML file for easy deployment
+* No backend required — runs entirely in the browser
