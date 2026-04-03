@@ -45,7 +45,7 @@ jobs:
       - name: Create or update latest release
         run: |
           gh release delete latest --yes 2>/dev/null || true
-          gh release create latest dist/index.html dist/game.html dist/perk-library.html dist/showcase.html \
+          gh release create latest dist/index.html dist/game.html dist/perk-library.html dist/showcase.html dist/skills-showcase.html \
             --title "Latest Build (run ${{ github.run_number }})" \
             --notes "Built from commit ${{ github.sha }} on $(date -u +%Y-%m-%d)" \
             --prerelease

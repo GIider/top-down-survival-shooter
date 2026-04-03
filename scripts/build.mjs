@@ -13,10 +13,12 @@ const distDir = path.join(rootDir, "dist");
 const templateHtmlPath = path.join(rootDir, "src", "index.template.html");
 const perkLibraryTemplateHtmlPath = path.join(rootDir, "src", "perk-library.template.html");
 const showcaseTemplateHtmlPath = path.join(rootDir, "src", "showcase.template.html");
+const skillsShowcaseTemplateHtmlPath = path.join(rootDir, "src", "skills-showcase.template.html");
 const sourceCssPath = path.join(rootDir, "src", "style.css");
 const staticPagesCssPath = path.join(rootDir, "src", "static-pages.css");
 const sourceJsEntryPath = path.join(rootDir, "src", "main.js");
 const showcaseJsEntryPath = path.join(rootDir, "src", "showcase", "main.js");
+const skillsShowcaseJsEntryPath = path.join(rootDir, "src", "skills-showcase", "main.js");
 const buildNumberPath = path.join(rootDir, "scripts", "build-number.json");
 const outputGameSourceHtmlPath = path.join(distDir, "game.source.html");
 const outputGameHtmlPath = path.join(distDir, "game.html");
@@ -24,6 +26,8 @@ const outputPerkLibrarySourceHtmlPath = path.join(distDir, "perk-library.source.
 const outputPerkLibraryHtmlPath = path.join(distDir, "perk-library.html");
 const outputShowcaseSourceHtmlPath = path.join(distDir, "showcase.source.html");
 const outputShowcaseHtmlPath = path.join(distDir, "showcase.html");
+const outputSkillsShowcaseSourceHtmlPath = path.join(distDir, "skills-showcase.source.html");
+const outputSkillsShowcaseHtmlPath = path.join(distDir, "skills-showcase.html");
 const outputStaticPagesCssPath = path.join(distDir, "static-pages.css");
 const outputLandingHtmlPath = path.join(distDir, "index.html");
 const legacyPerksDirPath = path.join(distDir, "perks");
@@ -42,6 +46,7 @@ function buildStaticPageNav(currentPage) {
     { href: "./game.html", label: "Play Game", key: "game" },
     { href: "./perk-library.html", label: "Perk Library", key: "perk-library" },
     { href: "./showcase.html", label: "Enemy Showcase", key: "showcase" },
+    { href: "./skills-showcase.html", label: "Skill Showcase", key: "skills-showcase" },
   ];
 
   return links
@@ -195,6 +200,7 @@ function buildLandingHtml(appVersion) {
         <a href="./game.html">Play Game</a>
         <a href="./perk-library.html">Perk Library</a>
         <a href="./showcase.html">Enemy Showcase</a>
+        <a href="./skills-showcase.html">Skill Showcase</a>
         <a href="https://github.com/GIider/top-down-survival-shooter">GitHub Repository</a>
       </div>
       <div class="meta">Build version ${escapeHtml(appVersion)}</div>
@@ -232,10 +238,11 @@ async function runBuild() {
     buildNumber = await readAndBumpBuildNumber();
   }
   const appVersion = `0.${buildNumber}`;
-  const [templateHtml, perkLibraryTemplateHtml, showcaseTemplateHtml, cssContent, staticPagesCssContent] = await Promise.all([
+  const [templateHtml, perkLibraryTemplateHtml, showcaseTemplateHtml, skillsShowcaseTemplateHtml, cssContent, staticPagesCssContent] = await Promise.all([
     readFile(templateHtmlPath, "utf8"),
     readFile(perkLibraryTemplateHtmlPath, "utf8"),
     readFile(showcaseTemplateHtmlPath, "utf8"),
+    readFile(skillsShowcaseTemplateHtmlPath, "utf8"),
     readFile(sourceCssPath, "utf8"),
     readFile(staticPagesCssPath, "utf8"),
   ]);
@@ -265,6 +272,19 @@ async function runBuild() {
   });
 
   const showcaseJsBundle = showcaseJsBundleResult.outputFiles[0].text;
+
+  const skillsShowcaseJsBundleResult = await build({
+    entryPoints: [skillsShowcaseJsEntryPath],
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    legalComments: "none",
+    minify: false,
+  });
+
+  const skillsShowcaseJsBundle = skillsShowcaseJsBundleResult.outputFiles[0].text;
   const minifiedCssResult = await transform(cssContent, {
     loader: "css",
     minify: true,
@@ -296,6 +316,19 @@ async function runBuild() {
     .replace("__STATIC_SITE_FOOTER__", buildStaticPageFooter(appVersion))
     .replace("<!-- __INLINE_SCRIPT__ -->", `  <script>\n${showcaseJsBundle}\n  </script>`);
 
+  const skillsShowcaseSourceHtml = skillsShowcaseTemplateHtml
+    .replace(/__APP_VERSION__/g, appVersion)
+    .replace(
+      "__STATIC_SITE_HEADER__",
+      buildStaticPageHeader({
+        title: "Skill Showcase",
+        subtitle: "Looping skill demonstrations rendered with the game engine.",
+        currentPage: "skills-showcase",
+      })
+    )
+    .replace("__STATIC_SITE_FOOTER__", buildStaticPageFooter(appVersion))
+    .replace("<!-- __INLINE_SCRIPT__ -->", `  <script>\n${skillsShowcaseJsBundle}\n  </script>`);
+
   const minifiedHtml = await minify(composedHtml, {
     collapseWhitespace: true,
     removeComments: true,
@@ -309,6 +342,18 @@ async function runBuild() {
   });
 
   const showcaseHtml = await minify(showcaseSourceHtml, {
+    collapseWhitespace: true,
+    removeComments: true,
+    removeRedundantAttributes: true,
+    removeOptionalTags: false,
+    removeEmptyAttributes: true,
+    minifyCSS: true,
+    minifyJS: true,
+    useShortDoctype: true,
+    keepClosingSlash: true,
+  });
+
+  const skillsShowcaseHtml = await minify(skillsShowcaseSourceHtml, {
     collapseWhitespace: true,
     removeComments: true,
     removeRedundantAttributes: true,
@@ -368,11 +413,13 @@ async function runBuild() {
   await writeFile(outputPerkLibraryHtmlPath, perksHtml, "utf8");
   await writeFile(outputShowcaseSourceHtmlPath, showcaseSourceHtml, "utf8");
   await writeFile(outputShowcaseHtmlPath, showcaseHtml, "utf8");
+  await writeFile(outputSkillsShowcaseSourceHtmlPath, skillsShowcaseSourceHtml, "utf8");
+  await writeFile(outputSkillsShowcaseHtmlPath, skillsShowcaseHtml, "utf8");
   await writeFile(outputStaticPagesCssPath, minifiedStaticPagesCssResult.code, "utf8");
   await writeFile(outputLandingHtmlPath, landingHtml, "utf8");
 
   console.log(
-    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html (version ${appVersion})`
+    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html + dist/skills-showcase.html (version ${appVersion})`
   );
 }
 
