@@ -1,6 +1,13 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { PICKUP_DEFS, PICKUP_POOL } from "./pickupCatalog.js";
 import { PERK_HOOKS } from "../perks/contracts.js";
+import { playSfx } from "../../audio/sfx.js";
+
+const PICKUP_SFX = {
+  [PICKUP_DEFS.health.type]: "pickupHealth",
+  [PICKUP_DEFS.magazine.type]: "pickupMagazine",
+  [PICKUP_DEFS.nuke.type]: "nuke",
+};
 
 const PICKUP_BASE_DROP_CHANCE = 0.26;
 const NUKE_WAVE_SPEED = 920;
@@ -47,6 +54,7 @@ function applyPickupEffect(services, pickup) {
   const gameState = services.gameState;
   const player = gameState.player;
   const weaponSystem = services.getWeaponSystem();
+  playSfx(PICKUP_SFX[pickup.type] ?? "pickupPower");
 
   if (pickup.type === PICKUP_DEFS.health.type) {
     const maxHp = player.maxHp + player.maxHpBonus;

@@ -3,6 +3,7 @@ import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../../entiti
 import { igniteTreesAt, resolvePositionAgainstMountains } from "../worldSystem.js";
 import { getMeleeConfig } from "../weapons/index.js";
 import { createDamageContext, PERK_HOOKS } from "../perks/contracts.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const BLINK_CONFIG = GAME_CONFIG.skills.blink;
 const MELEE_CONFIG = getMeleeConfig();
@@ -173,6 +174,7 @@ export function tryBlink(services, worldPointer) {
   const resolved = resolvePositionAgainstMountains(world, targetX, targetY, player.radius);
   player.x = resolved.x;
   player.y = resolved.y;
+  playSfx("blink");
   if (player.blinkMaxCharges <= 1) {
     player.blinkCharges = 0;
     player.blinkChargeTimer = player.blinkCooldown;

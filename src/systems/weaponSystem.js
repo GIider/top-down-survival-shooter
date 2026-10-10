@@ -9,6 +9,7 @@ import {
   getMeleePreview,
 } from "./weapons/index.js";
 import { createDefaultShotPlan, PERK_HOOKS } from "./perks/contracts.js";
+import { playSfx } from "../audio/sfx.js";
 
 const GUN_CONFIG = getGunConfig();
 const BOW_CONFIG = getBowConfig();
@@ -430,6 +431,7 @@ export class Weapon {
     const [start, end] = this.getPerfectReloadWindow(player, perkEngine);
     if (this.reloadProgress >= start && this.reloadProgress <= end) {
       this.triggerReloadFeedback("perfect", GUN_CONFIG.reloadFeedback.perfectDuration);
+      playSfx("reloadPerfect");
       this.finishReload(player);
       if (perkEngine) {
         perkEngine.emitSideEffectHook(PERK_HOOKS.onPerfectReloadSuccess, { player, weaponSystem: this }, player);
@@ -439,6 +441,7 @@ export class Weapon {
 
     this.reloadFailed = true;
     this.triggerReloadFeedback("miss", GUN_CONFIG.reloadFeedback.missDuration);
+    playSfx("reloadFail");
 
     return false;
   }
@@ -495,6 +498,7 @@ export class Weapon {
     this.showAmmoBar();
     this.cooldown = 1 / (this.fireRate * player.fireRateMultiplier);
     this.state = "firing";
+    playSfx("gunShot");
 
     if (!hasInfiniteAmmo && this.currentAmmo <= 0) {
       this.state = "empty";
@@ -538,6 +542,7 @@ export class Weapon {
     this.bowReloadTimer = this.bowReloadTime;
     this.cooldown = 0.16;
     this.state = isPerfect ? "bow-perfect" : "bow-shot";
+    playSfx(isPerfect ? "bowShotPerfect" : "bowShot", { pitch: 0.85 + ratio * 0.3 });
     return true;
   }
 
@@ -566,6 +571,7 @@ export class Weapon {
 
     this.meleeCooldown = comboConfig.cooldown / Math.max(0.3, player.fireRateMultiplier);
     this.state = "melee";
+    playSfx("meleeSwing", { pitch: 1 + this.comboIndex * 0.12 });
     return true;
   }
 
@@ -644,6 +650,7 @@ export class Weapon {
 
       if (this.reloadProgress >= 1) {
         this.finishReload(player);
+        playSfx("reloadDone");
       }
     }
   }

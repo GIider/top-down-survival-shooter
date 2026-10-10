@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { moveEnemyWithTerrain, normalize, spawnFloatingText } from "./common.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
 const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
@@ -9,6 +10,7 @@ function explodeBomber(gameState, enemy, player, enemyIndex) {
   const radius = enemy.explosionRadius || BOMBER_CONFIG.explosionRadius;
   const damage = enemy.explosionDamage || BOMBER_CONFIG.explosionDamage;
   const distance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+  playSfx("explosion");
 
   if (distance <= radius) {
     player.hp -= damage;

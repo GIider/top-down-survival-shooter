@@ -1,3 +1,4 @@
+import { playSfx } from "./audio/sfx.js";
 import { CANVAS, GAME_CONFIG } from "./core/constants.js";
 import { createFpsTracker } from "./core/fpsTracker.js";
 import { createGameServices } from "./core/gameServices.js";
@@ -352,6 +353,7 @@ function choosePerkByPointer() {
   }
 
   applyPerk(player, selected, { perkEngine });
+  playSfx("perkSelect");
   markPerkActivated(selected.id);
   player.perkPoints = Math.max(0, player.perkPoints - 1);
 
@@ -626,6 +628,7 @@ function update(dt) {
 
   if (gameState.player.hp <= 0) {
     recordRunResult();
+    playSfx("gameOver");
     gameState.gameOver = true;
     gameState.gameOverElapsed = 0;
     gameState.running = false;

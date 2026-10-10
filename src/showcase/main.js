@@ -15,6 +15,10 @@ import { updateShotgunShooterBehavior } from "../systems/enemies/shotgunShooter.
 import { updateIndicators } from "../systems/indicatorSystem.js";
 import { updateEffects, updateFloatingTexts, updateSlashEffects } from "../systems/effectSystem.js";
 import { updateProjectiles as updateProjectilesSystem } from "../systems/projectileSystem.js";
+import { sfx } from "../audio/sfx.js";
+
+// Showcases reuse game systems for demos; keep them silent.
+sfx.silence(true);
 
 const DT = 1 / 60;
 const DIFFICULTY = 10;

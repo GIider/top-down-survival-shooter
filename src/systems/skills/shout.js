@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { getPlayerDamageMultiplier } from "../../entities/player.js";
 import { PERK_HOOKS } from "../perks/contracts.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const SHOUT_CONFIG = GAME_CONFIG.skills.shout;
 
@@ -50,6 +51,7 @@ export function tryShout(services) {
   }
 
   player.shoutCooldownRemaining = player.shoutCooldown;
+  playSfx("shout");
   const waveContext = {
     gameState,
     player,
