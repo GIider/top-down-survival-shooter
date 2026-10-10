@@ -65,8 +65,9 @@ export function renderPickupLegendPanel(ctx, x, y, width, wrapTextLines) {
   ctx.restore();
 }
 
-export function renderControlsLegendPanel(ctx, x, y, width, wrapTextLines, title = "Controls") {
-  const rowsConfig = GAME_CONFIG.ui.legends.controlRows;
+export function renderControlsLegendPanel(ctx, x, y, width, wrapTextLines, title = "Controls", useGamepad = false) {
+  const legends = GAME_CONFIG.ui.legends;
+  const rowsConfig = useGamepad && legends.gamepadControlRows ? legends.gamepadControlRows : legends.controlRows;
 
   ctx.save();
   ctx.textAlign = "left";

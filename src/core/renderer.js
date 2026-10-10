@@ -212,7 +212,7 @@ export function createRenderer(canvas, gameState) {
   }
 
   function drawControlsLegendPanel(x, y, width, title = "Controls") {
-    renderControlsLegendPanel(ctx, x, y, width, wrapTextLines, title);
+    renderControlsLegendPanel(ctx, x, y, width, wrapTextLines, title, gameState.inputDevice === "gamepad");
   }
 
   function drawTitleHistoryPanel(x, y, width, height) {
@@ -1137,6 +1137,14 @@ export function createRenderer(canvas, gameState) {
 
       choice.__cardRect = { x, y, width: cardWidth, height: cardHeight };
       ctx.restore();
+
+      if (gameState.inputDevice === "gamepad" && (player.perkFocusIndex ?? 0) === index) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 226, 166, 0.95)";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x - 4, y - 4, cardWidth + 8, cardHeight + 8);
+        ctx.restore();
+      }
     });
 
     ctx.fillStyle = "#ffffff";
@@ -1188,6 +1196,11 @@ export function createRenderer(canvas, gameState) {
     );
 
     player.perkRerollRect = { x: rerollX, y: rerollY, width: rerollWidth, height: rerollHeight };
+    if (gameState.inputDevice === "gamepad" && (player.perkFocusIndex ?? 0) === player.perkChoices.length) {
+      ctx.strokeStyle = "rgba(255, 226, 166, 0.95)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(rerollX - 4, rerollY - 4, rerollWidth + 8, rerollHeight + 8);
+    }
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
@@ -1268,7 +1281,11 @@ export function createRenderer(canvas, gameState) {
       const pulse = 0.65 + 0.35 * Math.sin(gameState.time * 6);
       ctx.fillStyle = `rgba(255, 224, 166, ${0.55 + 0.45 * pulse})`;
       ctx.font = "16px monospace";
-      ctx.fillText("Press R for a new run or SPACE for title", canvas.width * 0.5, panelY + 172);
+      ctx.fillText(
+        gameState.inputDevice === "gamepad" ? "Press A for a new run or B for title" : "Press R for a new run or SPACE for title",
+        canvas.width * 0.5,
+        panelY + 172
+      );
     }
 
     ctx.textAlign = "start";

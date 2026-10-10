@@ -7,6 +7,8 @@ import { createLoop } from "./core/loop.js";
 import { loadPerkProgress, savePerkProgress } from "./core/perkProgress.js";
 import { createRenderer } from "./core/renderer.js";
 import { loadRunHistory, saveRunHistory } from "./core/runHistory.js";
+import { AUTO_AIM_SNAP_MAX, loadSettings, saveSettings } from "./core/settings.js";
+import { createAutoAim } from "./systems/autoAim.js";
 import { createInitialState } from "./core/state.js";
 import { updatePlayerMovement } from "./entities/player.js";
 import { updateCollisionSystem } from "./systems/collisionSystem.js";
@@ -50,6 +52,8 @@ const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content 
 const gameState = createInitialState();
 gameState.runHistory = loadRunHistory();
 gameState.perkProgress = loadPerkProgress();
+gameState.settings = loadSettings();
+const autoAim = createAutoAim();
 gameState.appVersion = APP_VERSION;
 const perkEngine = createPerkEngine();
 gameState.systems.perkEngine = perkEngine;
@@ -74,6 +78,8 @@ function applyFreshState(freshState) {
   freshState.runHistory = [...gameState.runHistory];
   freshState.runHistorySort = gameState.runHistorySort;
   freshState.appVersion = gameState.appVersion;
+  freshState.settings = gameState.settings;
+  autoAim.reset();
   freshState.perkProgress = {
     seen: { ...gameState.perkProgress.seen },
     activated: { ...gameState.perkProgress.activated },
@@ -317,6 +323,79 @@ function closePerkModal() {
   gameState.paused = false;
 }
 
+function setAutoAimSnap(value) {
+  const next = Math.max(0, Math.min(AUTO_AIM_SNAP_MAX, Math.round(value)));
+  if (next === gameState.settings.autoAimSnap) {
+    return;
+  }
+  gameState.settings.autoAimSnap = next;
+  saveSettings(gameState.settings);
+}
+
+function pointInRect(rect, x, y, pad = 0) {
+  return !!rect && x >= rect.x - pad && x <= rect.x + rect.width + pad && y >= rect.y - pad && y <= rect.y + rect.height + pad;
+}
+
+function handlePauseMenu({ nav, keyNav, confirm, clicked }) {
+  const activate = confirm;
+  const { x, y } = input.pointer;
+
+  if (gameState.pauseView !== "settings") {
+    if (activate || (clicked && pointInRect(gameState.pauseSettingsButtonRect, x, y))) {
+      gameState.pauseView = "settings";
+    }
+    return;
+  }
+
+  const dx = nav.dx || keyNav.dx;
+  if (dx !== 0) {
+    setAutoAimSnap(gameState.settings.autoAimSnap + dx);
+  }
+
+  const track = gameState.pauseSettingsSliderRect;
+  if (input.pointer.down && input.activeDevice === "keyboard" && pointInRect(track, x, y, 14)) {
+    const ratio = Math.max(0, Math.min(1, (x - track.x) / track.width));
+    setAutoAimSnap(ratio * AUTO_AIM_SNAP_MAX);
+  }
+
+  if (activate || (clicked && pointInRect(gameState.pauseSettingsBackRect, x, y))) {
+    gameState.pauseView = "main";
+  }
+}
+
+function handleGamepadPerkNav(nav, confirm) {
+  const player = gameState.player;
+  if (!player.perkModalOpen || !input.isGamepadActive()) {
+    return;
+  }
+
+  const count = player.perkChoices.length;
+  const hasReroll = !!player.perkRerollAvailable;
+  const total = count + (hasReroll ? 1 : 0);
+  if (total === 0) {
+    return;
+  }
+
+  let index = Math.max(0, Math.min(total - 1, player.perkFocusIndex ?? 0));
+  if (nav.dx !== 0) {
+    index = (index + nav.dx + total) % total;
+  } else if (nav.dy > 0 && hasReroll) {
+    index = count;
+  } else if (nav.dy < 0 && index === count) {
+    index = Math.floor((count - 1) / 2);
+  }
+  player.perkFocusIndex = index;
+
+  if (confirm) {
+    const rect = index < count ? player.perkChoices[index].__cardRect : player.perkRerollRect;
+    if (rect) {
+      input.pointer.x = rect.x + rect.width * 0.5;
+      input.pointer.y = rect.y + rect.height * 0.5;
+      input.pointer.clicked = true;
+    }
+  }
+}
+
 function choosePerkByPointer() {
   const player = gameState.player;
   if (!player.perkModalOpen || !input.consumeClick()) {
@@ -395,12 +474,38 @@ function update(dt) {
     gameState.player.perkSelectionLockTimer = Math.max(0, gameState.player.perkSelectionLockTimer - dt);
   }
 
+  input.setMenuMode(
+    gameState.titleScreen || gameState.gameOver || gameState.paused || gameState.player.perkModalOpen
+  );
+  input.poll(dt);
+  gameState.inputDevice = input.activeDevice;
+  canvas.style.cursor = input.isGamepadActive() ? "none" : "";
+
+  const menuNav = input.consumeMenuNav();
+  const menuConfirm = input.consumeMenuConfirm();
+  const menuBack = input.consumeMenuBack();
+  const keyNav = input.consumeKeyNav();
+  const enterPressed = input.consumeEnterPress();
+
+  if (input.consumeGamepadDisconnect() && gameState.running && !gameState.titleScreen && !gameState.gameOver) {
+    gameState.paused = true;
+  }
+
+  handleGamepadPerkNav(menuNav, menuConfirm);
+
   const perkClickHandled = choosePerkByPointer();
   if (perkClickHandled) {
     return;
   }
 
-  const pausePressed = input.consumePausePress();
+  const pausePressed =
+    input.consumePausePress() ||
+    (menuBack &&
+      gameState.paused &&
+      gameState.pauseView !== "settings" &&
+      !gameState.titleScreen &&
+      !gameState.gameOver &&
+      !gameState.player.perkModalOpen);
   const reloadPressed = input.consumeReloadPress();
   const clicked = input.consumeClick();
   const wheelDeltaY = input.consumeWheelDeltaY();
@@ -443,7 +548,7 @@ function update(dt) {
       }
     }
 
-    if (pausePressed) {
+    if (pausePressed || menuConfirm) {
       startNewRun();
     } else if (clicked) {
       handleTitleScreenClick();
@@ -456,20 +561,27 @@ function update(dt) {
     gameState.slashEffects.length = 0;
     gameState.shoutWaves.length = 0;
     gameState.fireballs.length = 0;
-    if (reloadPressed) {
+    if (reloadPressed || menuConfirm) {
       startNewRun();
       return;
     }
-    if (pausePressed) {
+    if (pausePressed || menuBack) {
       returnToTitleScreen();
     }
     return;
+  }
+
+  if (gameState.paused && gameState.pauseView === "settings" && menuBack) {
+    gameState.pauseView = "main";
+  } else if (gameState.paused && !gameState.player.perkModalOpen && !pausePressed) {
+    handlePauseMenu({ nav: menuNav, keyNav, confirm: menuConfirm || enterPressed, clicked });
   }
 
   if (gameState.player.perkModalOpen && pausePressed) {
     gameState.player.perkSelectionLockTimer = 0;
   } else if (!gameState.player.perkModalOpen && pausePressed) {
     gameState.paused = !gameState.paused;
+    gameState.pauseView = "main";
     if (gameState.paused) {
       gameState.screenFx.shake = 0;
     }
@@ -509,9 +621,20 @@ function update(dt) {
     player.blinkCharges = player.blinkMaxCharges;
   }
 
+  let gamepadAim = null;
+  if (input.isGamepadActive()) {
+    gamepadAim = autoAim.update({
+      origin: gameState.player,
+      stickDir: input.isGamepadAimActive() ? input.gamepadAimDirection() : null,
+      enemies: gameState.enemies,
+      snap: gameState.settings.autoAimSnap / AUTO_AIM_SNAP_MAX,
+      dt,
+    });
+  }
+  const aimRadius = GAME_CONFIG.gamepad.aimRadius;
   const worldPointer = {
-    x: gameState.player.x + (input.pointer.x - canvas.width * 0.5),
-    y: gameState.player.y + (input.pointer.y - canvas.height * 0.5),
+    x: gamepadAim ? gameState.player.x + gamepadAim.x * aimRadius : gameState.player.x + (input.pointer.x - canvas.width * 0.5),
+    y: gamepadAim ? gameState.player.y + gamepadAim.y * aimRadius : gameState.player.y + (input.pointer.y - canvas.height * 0.5),
     down: input.pointer.down,
   };
   gameState.player.aim.x = worldPointer.x;
@@ -536,17 +659,21 @@ function update(dt) {
   const fireballPressed = input.consumeFireballPress();
   const releasedClick = input.consumePointerRelease();
   const weaponSlot = input.consumeWeaponSlotPress();
+  const weaponCycle = input.consumeWeaponCycle();
+  const cancelPressed = input.consumeCancelPress();
 
   if (weaponSlot === 1 || weaponSlot === 2 || weaponSlot === 3 || weaponSlot === 4) {
     weaponSystem.switchWeapon(weaponSlot);
+  } else if (weaponCycle !== 0) {
+    weaponSystem.switchWeapon(((weaponSystem.selectedSlot - 1 + weaponCycle + 4) % 4) + 1);
   }
 
-  if (holdingBlink && (reloadPressed || clicked)) {
+  if (holdingBlink && (reloadPressed || clicked || cancelPressed)) {
     blinkCanceledDuringHold = true;
     gameState.player.blinkPreview.active = false;
   }
 
-  if (holdingShout && clicked) {
+  if (holdingShout && (clicked || cancelPressed)) {
     shoutCanceledDuringHold = true;
     gameState.player.shoutPreview.active = false;
   }

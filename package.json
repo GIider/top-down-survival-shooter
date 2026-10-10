@@ -7,7 +7,8 @@
     "build": "node scripts/build.mjs",
     "test:regression:perkEngine": "node tests/regression/perkEngine.regression.mjs",
     "test:regression:showcase": "node tests/regression/showcase.regression.mjs",
-    "test:regression": "npm run test:regression:perkEngine && npm run test:regression:showcase"
+    "test:regression:gamepad": "node tests/regression/gamepad.regression.mjs",
+    "test:regression": "npm run test:regression:perkEngine && npm run test:regression:showcase && npm run test:regression:gamepad"
   },
   "devDependencies": {
     "esbuild": "^0.25.4",

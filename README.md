@@ -20,6 +20,34 @@ https://giider.github.io/top-down-survival-shooter/
 
 ---
 
+## 🕹 Controls
+
+| Action | Keyboard / Mouse | Controller |
+|---|---|---|
+| Move | WASD / arrows | Left stick |
+| Aim | Mouse | Right stick (with auto-aim) |
+| Attack | Left click | RT |
+| Switch weapon | 1 / 2 / 3 / 4 | D-pad left / right |
+| Blink (hold, release to cast) | Q | LT |
+| Shout (hold, release to cast) | E | RB |
+| Fireball | F | Y |
+| Reload | R | X |
+| Cancel a held blink / shout | Click | B |
+| Pause / resume / start run | Space | Start |
+
+Menus: the perk modal, title, pause and game-over screens are fully navigable with a controller
+(D-pad / left stick to move focus, A to confirm, B to go back). The perk library is mouse-only.
+
+The game switches between keyboard/mouse and controller automatically based on the last input used.
+
+### Controller auto-aim & settings
+
+Open **Pause → Settings** to tune *Controller auto-aim snappiness* (0 = off, 10 = max, default 6).
+Higher values widen the catch cone around the stick direction, pull harder toward the nearest enemy
+and turn faster. The value is stored in `localStorage` and applies to controller aiming only.
+
+---
+
 ## 🛠 Debug Mode
 
 Enable debug mode by appending the query parameter:
@@ -40,6 +68,8 @@ https://giider.github.io/top-down-survival-shooter/game.html?debug=1
 ```
 
 src/                # Game source (entities, systems, rendering, config)
+src/core/input.js   # Keyboard, mouse and gamepad input (polls the pure gamepadMapper)
+src/systems/autoAim.js  # Controller auto-aim
 scripts/build.mjs   # Build pipeline
 dist/               # Generated output
 
