@@ -631,6 +631,7 @@ function update(dt) {
       dt,
     });
   }
+  gameState.autoAimTarget = gamepadAim?.target ?? null;
   const aimRadius = GAME_CONFIG.gamepad.aimRadius;
   const worldPointer = {
     x: gamepadAim ? gameState.player.x + gamepadAim.x * aimRadius : gameState.player.x + (input.pointer.x - canvas.width * 0.5),

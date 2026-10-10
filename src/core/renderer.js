@@ -841,6 +841,30 @@ export function createRenderer(canvas, gameState) {
     });
   }
 
+  function renderAutoAimLock() {
+    const target = gameState.autoAimTarget;
+    if (!target || !(target.hp > 0) || gameState.inputDevice !== "gamepad" || !gameState.enemies.includes(target)) {
+      return;
+    }
+
+    const t = gameState.time;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 9);
+    const radius = (target.radius || 12) + 9 + pulse * 2;
+    const spin = t * 2.4;
+
+    ctx.save();
+    ctx.translate(target.x, target.y);
+    ctx.strokeStyle = `rgba(255, 226, 166, ${0.7 + pulse * 0.25})`;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i += 1) {
+      const start = spin + (i * Math.PI) / 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, start, start + Math.PI * 0.32);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderWeaponReticle() {
     const weapon = gameState.systems.weaponSystem;
     const perkEngine = gameState.systems.perkEngine;
@@ -1307,6 +1331,7 @@ export function createRenderer(canvas, gameState) {
       renderDrops();
       renderWeaponReticle();
       renderEntities();
+      renderAutoAimLock();
       renderShoutWaves();
       renderPlayerReloadIndicator();
       renderLingeringZones();
