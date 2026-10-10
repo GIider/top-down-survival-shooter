@@ -1,3 +1,5 @@
+import { getAutoAimParams } from "../../systems/autoAim.js";
+import { AUTO_AIM_SNAP_MAX } from "../settings.js";
 import { GAME_CONFIG } from "../constants.js";
 import { skillPerkCatalog } from "../../systems/perks/skillPerkCatalog.js";
 
@@ -324,16 +326,128 @@ export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendP
   ctx.fillStyle = "rgba(4, 10, 18, 0.5)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  const usingGamepad = gameState.inputDevice === "gamepad";
+
+  if (gameState.pauseView === "settings") {
+    renderPauseSettings(ctx, canvas, gameState, usingGamepad);
+    return;
+  }
+
+  gameState.pauseSettingsSliderRect = null;
+  gameState.pauseSettingsBackRect = null;
+
   ctx.textAlign = "center";
   ctx.fillStyle = "#dff8ff";
   ctx.font = "bold 46px monospace";
   ctx.fillText("PAUSED", canvas.width * 0.5, 112);
   ctx.font = "16px monospace";
   ctx.fillStyle = "rgba(212, 233, 255, 0.9)";
-  ctx.fillText("Press SPACE to resume", canvas.width * 0.5, 146);
+  ctx.fillText(usingGamepad ? "Press START to resume" : "Press SPACE to resume", canvas.width * 0.5, 146);
+
+  const button = { x: canvas.width * 0.5 - 110, y: 168, width: 220, height: 36 };
+  gameState.pauseSettingsButtonRect = button;
+  ctx.fillStyle = "rgba(33, 67, 84, 0.9)";
+  ctx.fillRect(button.x, button.y, button.width, button.height);
+  ctx.strokeStyle = usingGamepad ? "rgba(255, 226, 166, 0.95)" : "rgba(150, 228, 255, 0.6)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(button.x, button.y, button.width, button.height);
+  ctx.fillStyle = "#effcff";
+  ctx.font = "bold 16px monospace";
+  ctx.textBaseline = "middle";
+  ctx.fillText(usingGamepad ? "Settings (A)" : "Settings (Enter)", canvas.width * 0.5, button.y + button.height * 0.5 + 1);
+  ctx.textBaseline = "alphabetic";
 
   renderControlsLegendPanel(ui.controlsPanelX, canvas.height - ui.panelBottomOffset, ui.panelWidth);
   renderPickupLegendPanel(canvas.width - ui.pickupPanelRightOffset, canvas.height - ui.panelBottomOffset, ui.panelWidth);
+  ctx.textAlign = "start";
+}
+
+function renderPauseSettings(ctx, canvas, gameState, usingGamepad) {
+  const snap = gameState.settings?.autoAimSnap ?? 0;
+  const cx = canvas.width * 0.5;
+
+  gameState.pauseSettingsButtonRect = null;
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#dff8ff";
+  ctx.font = "bold 46px monospace";
+  ctx.fillText("SETTINGS", cx, 112);
+
+  const panel = { x: cx - 340, y: 160, width: 680, height: 330 };
+  ctx.fillStyle = "rgba(8, 18, 29, 0.92)";
+  ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
+  ctx.strokeStyle = "rgba(150, 228, 255, 0.35)";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(panel.x, panel.y, panel.width, panel.height);
+
+  ctx.fillStyle = "#ffe7c4";
+  ctx.font = "bold 18px monospace";
+  ctx.fillText("Controller auto-aim snappiness", cx, panel.y + 46);
+
+  const track = { x: panel.x + 80, y: panel.y + 100, width: panel.width - 160, height: 16 };
+  gameState.pauseSettingsSliderRect = track;
+  ctx.fillStyle = "rgba(18, 30, 46, 0.95)";
+  ctx.fillRect(track.x, track.y, track.width, track.height);
+  const fillWidth = track.width * (snap / AUTO_AIM_SNAP_MAX);
+  ctx.fillStyle = "rgba(88, 171, 206, 0.85)";
+  ctx.fillRect(track.x, track.y, fillWidth, track.height);
+  ctx.strokeStyle = "rgba(150, 228, 255, 0.6)";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(track.x, track.y, track.width, track.height);
+  for (let i = 0; i <= AUTO_AIM_SNAP_MAX; i += 1) {
+    const tx = track.x + (track.width * i) / AUTO_AIM_SNAP_MAX;
+    ctx.fillStyle = "rgba(150, 228, 255, 0.5)";
+    ctx.fillRect(tx - 1, track.y + track.height + 4, 2, 6);
+  }
+  ctx.fillStyle = "#ffe2a6";
+  ctx.fillRect(track.x + fillWidth - 6, track.y - 6, 12, track.height + 12);
+
+  ctx.font = "12px monospace";
+  ctx.fillStyle = "#b8d4e6";
+  ctx.textAlign = "left";
+  ctx.fillText("Off", track.x - 4, track.y + track.height + 28);
+  ctx.textAlign = "right";
+  ctx.fillText("Max snap", track.x + track.width + 4, track.y + track.height + 28);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#effcff";
+  ctx.font = "bold 26px monospace";
+  ctx.fillText(snap === 0 ? "Off" : `${snap} / ${AUTO_AIM_SNAP_MAX}`, cx, panel.y + 190);
+
+  ctx.font = "13px monospace";
+  ctx.fillStyle = "rgba(212, 233, 255, 0.85)";
+  if (snap === 0) {
+    ctx.fillText("Aim follows the right stick exactly.", cx, panel.y + 218);
+  } else {
+    const params = getAutoAimParams(snap / AUTO_AIM_SNAP_MAX);
+    ctx.fillText(
+      `Cone ±${Math.round((params.coneHalfAngle * 180) / Math.PI)}°  ·  Pull ${Math.round(params.pull * 100)}%  ·  Turn ${Math.round(params.turnRate)}/s`,
+      cx,
+      panel.y + 218
+    );
+    ctx.fillText("Higher = wider catch cone and faster snapping onto enemies.", cx, panel.y + 240);
+  }
+
+  const back = { x: cx - 90, y: panel.y + panel.height - 62, width: 180, height: 36 };
+  gameState.pauseSettingsBackRect = back;
+  ctx.fillStyle = "rgba(33, 67, 84, 0.9)";
+  ctx.fillRect(back.x, back.y, back.width, back.height);
+  ctx.strokeStyle = "rgba(255, 226, 166, 0.85)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(back.x, back.y, back.width, back.height);
+  ctx.fillStyle = "#effcff";
+  ctx.font = "bold 16px monospace";
+  ctx.textBaseline = "middle";
+  ctx.fillText(usingGamepad ? "Back (B)" : "Back (Enter)", cx, back.y + back.height * 0.5 + 1);
+  ctx.textBaseline = "alphabetic";
+
+  ctx.font = "13px monospace";
+  ctx.fillStyle = "rgba(212, 233, 255, 0.8)";
+  ctx.fillText(
+    usingGamepad ? "D-pad / stick left-right to adjust" : "Left / Right arrows or drag the slider to adjust",
+    cx,
+    panel.y + panel.height + 28
+  );
   ctx.textAlign = "start";
 }
 
@@ -408,7 +522,7 @@ export function renderTitleScreen(ctx, canvas, gameState, renderControlsLegendPa
   ctx.strokeRect(gameState.titleStartRect.x, gameState.titleStartRect.y, gameState.titleStartRect.width, gameState.titleStartRect.height);
   ctx.fillStyle = `rgba(255, 238, 194, ${0.7 + pulse * 0.3})`;
   ctx.font = "bold 18px monospace";
-  ctx.fillText("Press SPACE", gameState.titleStartRect.x + gameState.titleStartRect.width * 0.5, gameState.titleStartRect.y + 24);
+  ctx.fillText(gameState.inputDevice === "gamepad" ? "Press A / START" : "Press SPACE", gameState.titleStartRect.x + gameState.titleStartRect.width * 0.5, gameState.titleStartRect.y + 24);
 
   renderTitleHistoryPanel(historyX, historyY, historyWidth, historyHeight);
   if (libraryOpen) {

@@ -1,4 +1,10 @@
 export const GAME_CONFIG = {
+  gamepad: {
+    moveDeadzone: 0.2,
+    aimDeadzone: 0.25,
+    triggerThreshold: 0.35,
+    aimRadius: 220,
+  },
   canvas: {
     width: 1280,
     height: 720,
@@ -21,6 +27,15 @@ export const GAME_CONFIG = {
         ["Q / E / F", "Blink / Shout / Fireball"],
         ["R", "Reload"],
         ["Space", "Pause / Resume"],
+      ],
+      gamepadControlRows: [
+        ["L Stick", "Move"],
+        ["R Stick", "Aim"],
+        ["RT", "Attack"],
+        ["D-Pad L / R", "Switch weapon"],
+        ["LT / RB / Y", "Blink / Shout / Fireball"],
+        ["X", "Reload"],
+        ["Start", "Pause / Resume"],
       ],
     },
     pause: {

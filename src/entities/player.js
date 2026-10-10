@@ -1,7 +1,9 @@
 export function updatePlayerMovement(player, movement, dt, options = {}) {
   const magnitude = Math.hypot(movement.x, movement.y) || 1;
-  const nx = movement.x / magnitude;
-  const ny = movement.y / magnitude;
+  // Analog sticks may be below full tilt; keyboard diagonals (magnitude > 1) still normalize to 1.
+  const strength = Math.min(1, Math.hypot(movement.x, movement.y));
+  const nx = (movement.x / magnitude) * strength;
+  const ny = (movement.y / magnitude) * strength;
   const terrainMultiplier = options.terrainMultiplier ?? 1;
   const temporaryMultiplier = player.moveSpeedTemporaryMultiplier ?? 1;
   const pickupSpeedMultiplier = player.pickupMoveSpeedMultiplier ?? 1;

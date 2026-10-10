@@ -1,5 +1,26 @@
+import { createGamepadMapper } from "./gamepadMapper.js";
+import { GAME_CONFIG } from "../config/gameConfig.js";
+
 export function createInput(canvas) {
   const keys = new Set();
+  const gamepadMapper = createGamepadMapper(GAME_CONFIG.gamepad);
+  let activeDevice = "keyboard";
+  let menuMode = false;
+  let gamepadMove = { x: 0, y: 0 };
+  let gamepadAimDir = { x: 1, y: 0 };
+  let gamepadFireHeld = false;
+  let gamepadBlinkHeld = false;
+  let gamepadShoutHeld = false;
+  let gamepadWasConnected = false;
+  let gamepadDisconnected = false;
+  let cancelPressed = false;
+  let weaponCycle = 0;
+  let menuNav = { dx: 0, dy: 0 };
+  let menuConfirm = false;
+  let menuBack = false;
+  let gamepadAimActive = false;
+  let keyNav = { dx: 0, dy: 0 };
+  let enterPressed = false;
   let reloadPressed = false;
   let pausePressed = false;
   let shoutPressed = false;
@@ -33,6 +54,15 @@ export function createInput(canvas) {
     const key = event.key.toLowerCase();
     const code = event.code;
     keys.add(key);
+    activeDevice = "keyboard";
+
+    if (!event.repeat || key === "arrowleft" || key === "arrowright") {
+      if (key === "arrowleft") keyNav = { dx: -1, dy: 0 };
+      else if (key === "arrowright") keyNav = { dx: 1, dy: 0 };
+      else if (key === "arrowup") keyNav = { dx: 0, dy: -1 };
+      else if (key === "arrowdown") keyNav = { dx: 0, dy: 1 };
+      else if (key === "enter") enterPressed = true;
+    }
 
     if (key === "r" && !event.repeat) {
       reloadPressed = true;
@@ -82,6 +112,7 @@ export function createInput(canvas) {
   });
 
   canvas.addEventListener("mousemove", (event) => {
+    activeDevice = "keyboard";
     updatePointerPosition(event);
   });
 
@@ -89,6 +120,7 @@ export function createInput(canvas) {
     if (event.button !== 0) {
       return;
     }
+    activeDevice = "keyboard";
     updatePointerPosition(event);
     pointer.down = true;
     pointer.clicked = true;
@@ -112,9 +144,189 @@ export function createInput(canvas) {
     { passive: false }
   );
 
+  function releaseGamepadHolds() {
+    if (gamepadFireHeld) {
+      gamepadFireHeld = false;
+      pointer.down = false;
+      pointerReleased = true;
+    }
+    if (gamepadBlinkHeld) {
+      gamepadBlinkHeld = false;
+      blinkHeld = false;
+    }
+    if (gamepadShoutHeld) {
+      gamepadShoutHeld = false;
+      shoutHeld = false;
+    }
+    gamepadMove = { x: 0, y: 0 };
+  }
+
+  function readGamepadSnapshot() {
+    if (typeof navigator === "undefined" || typeof navigator.getGamepads !== "function") {
+      return null;
+    }
+    const pads = navigator.getGamepads() || [];
+    for (const pad of pads) {
+      if (pad && pad.connected) {
+        return { axes: Array.from(pad.axes), buttons: pad.buttons.map((b) => ({ pressed: b.pressed, value: b.value })) };
+      }
+    }
+    return null;
+  }
+
+  // Poll once per update tick; feeds gamepad state into the same latches the keyboard/mouse use.
+  function poll(dt = 0) {
+    const state = gamepadMapper.update(readGamepadSnapshot(), dt);
+    if (!state.connected) {
+      if (gamepadWasConnected) {
+        gamepadWasConnected = false;
+        gamepadDisconnected = true;
+        releaseGamepadHolds();
+        if (activeDevice === "gamepad") {
+          activeDevice = "keyboard";
+        }
+      }
+      return;
+    }
+    gamepadWasConnected = true;
+
+    if (state.anyInput) {
+      activeDevice = "gamepad";
+    }
+    if (activeDevice !== "gamepad") {
+      // Keep edge tracking current but do not drive the game from a pad nobody is touching.
+      return;
+    }
+
+    gamepadMove = state.move;
+    gamepadAimActive = !!state.aim;
+    if (state.aim) {
+      gamepadAimDir = { x: state.aim.x, y: state.aim.y };
+    }
+
+    if (state.pressed.pause) {
+      pausePressed = true;
+    }
+    menuNav = state.nav.dx !== 0 || state.nav.dy !== 0 ? state.nav : menuNav;
+    if (state.pressed.confirm) {
+      menuConfirm = true;
+    }
+    if (state.pressed.back) {
+      menuBack = true;
+    }
+
+    if (menuMode) {
+      // Menus use confirm/back/nav only; do not leak fire/skills into stale pointer positions.
+      if (gamepadFireHeld) {
+        releaseGamepadHolds();
+      }
+      return;
+    }
+
+    if (state.pressed.reload) {
+      reloadPressed = true;
+    }
+    if (state.pressed.back) {
+      cancelPressed = true;
+    }
+    if (state.pressed.fireball) {
+      fireballPressed = true;
+    }
+    if (state.pressed.weaponPrev) {
+      weaponCycle = -1;
+    } else if (state.pressed.weaponNext) {
+      weaponCycle = 1;
+    }
+
+    if (state.pressed.fire) {
+      gamepadFireHeld = true;
+      pointer.down = true;
+      pointer.clicked = true;
+    } else if (state.released.fire && gamepadFireHeld) {
+      gamepadFireHeld = false;
+      pointer.down = false;
+      pointerReleased = true;
+    }
+
+    if (state.pressed.blink) {
+      gamepadBlinkHeld = true;
+      blinkHeld = true;
+    } else if (state.released.blink && gamepadBlinkHeld) {
+      gamepadBlinkHeld = false;
+      blinkHeld = false;
+      blinkReleased = true;
+    }
+
+    if (state.pressed.shout) {
+      gamepadShoutHeld = true;
+      shoutPressed = true;
+      shoutHeld = true;
+    } else if (state.released.shout && gamepadShoutHeld) {
+      gamepadShoutHeld = false;
+      shoutHeld = false;
+      shoutReleased = true;
+    }
+  }
+
   return {
     keys,
     pointer,
+    poll,
+    get activeDevice() {
+      return activeDevice;
+    },
+    setMenuMode(value) {
+      menuMode = !!value;
+    },
+    isGamepadActive() {
+      return activeDevice === "gamepad";
+    },
+    isGamepadAimActive() {
+      return activeDevice === "gamepad" && gamepadAimActive;
+    },
+    consumeKeyNav() {
+      const value = keyNav;
+      keyNav = { dx: 0, dy: 0 };
+      return value;
+    },
+    consumeEnterPress() {
+      const value = enterPressed;
+      enterPressed = false;
+      return value;
+    },
+    gamepadAimDirection() {
+      return gamepadAimDir;
+    },
+    consumeGamepadDisconnect() {
+      const value = gamepadDisconnected;
+      gamepadDisconnected = false;
+      return value;
+    },
+    consumeCancelPress() {
+      const value = cancelPressed;
+      cancelPressed = false;
+      return value;
+    },
+    consumeWeaponCycle() {
+      const value = weaponCycle;
+      weaponCycle = 0;
+      return value;
+    },
+    consumeMenuNav() {
+      const value = menuNav;
+      menuNav = { dx: 0, dy: 0 };
+      return value;
+    },
+    consumeMenuConfirm() {
+      const value = menuConfirm;
+      menuConfirm = false;
+      return value;
+    },
+    consumeMenuBack() {
+      const value = menuBack;
+      menuBack = false;
+      return value;
+    },
     consumeReloadPress() {
       const pressed = reloadPressed;
       reloadPressed = false;
@@ -172,6 +384,9 @@ export function createInput(canvas) {
       return delta;
     },
     movement() {
+      if (activeDevice === "gamepad") {
+        return { x: gamepadMove.x, y: gamepadMove.y };
+      }
       const x = (keys.has("d") || keys.has("arrowright") ? 1 : 0) - (keys.has("a") || keys.has("arrowleft") ? 1 : 0);
       const y = (keys.has("s") || keys.has("arrowdown") ? 1 : 0) - (keys.has("w") || keys.has("arrowup") ? 1 : 0);
       return { x, y };

@@ -212,7 +212,7 @@ export function createRenderer(canvas, gameState) {
   }
 
   function drawControlsLegendPanel(x, y, width, title = "Controls") {
-    renderControlsLegendPanel(ctx, x, y, width, wrapTextLines, title);
+    renderControlsLegendPanel(ctx, x, y, width, wrapTextLines, title, gameState.inputDevice === "gamepad");
   }
 
   function drawTitleHistoryPanel(x, y, width, height) {
@@ -841,6 +841,30 @@ export function createRenderer(canvas, gameState) {
     });
   }
 
+  function renderAutoAimLock() {
+    const target = gameState.autoAimTarget;
+    if (!target || !(target.hp > 0) || gameState.inputDevice !== "gamepad" || !gameState.enemies.includes(target)) {
+      return;
+    }
+
+    const t = gameState.time;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 9);
+    const radius = (target.radius || 12) + 9 + pulse * 2;
+    const spin = t * 2.4;
+
+    ctx.save();
+    ctx.translate(target.x, target.y);
+    ctx.strokeStyle = `rgba(255, 226, 166, ${0.7 + pulse * 0.25})`;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i += 1) {
+      const start = spin + (i * Math.PI) / 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, start, start + Math.PI * 0.32);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderWeaponReticle() {
     const weapon = gameState.systems.weaponSystem;
     const perkEngine = gameState.systems.perkEngine;
@@ -1137,6 +1161,14 @@ export function createRenderer(canvas, gameState) {
 
       choice.__cardRect = { x, y, width: cardWidth, height: cardHeight };
       ctx.restore();
+
+      if (gameState.inputDevice === "gamepad" && (player.perkFocusIndex ?? 0) === index) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 226, 166, 0.95)";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x - 4, y - 4, cardWidth + 8, cardHeight + 8);
+        ctx.restore();
+      }
     });
 
     ctx.fillStyle = "#ffffff";
@@ -1188,6 +1220,11 @@ export function createRenderer(canvas, gameState) {
     );
 
     player.perkRerollRect = { x: rerollX, y: rerollY, width: rerollWidth, height: rerollHeight };
+    if (gameState.inputDevice === "gamepad" && (player.perkFocusIndex ?? 0) === player.perkChoices.length) {
+      ctx.strokeStyle = "rgba(255, 226, 166, 0.95)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(rerollX - 4, rerollY - 4, rerollWidth + 8, rerollHeight + 8);
+    }
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
@@ -1268,7 +1305,11 @@ export function createRenderer(canvas, gameState) {
       const pulse = 0.65 + 0.35 * Math.sin(gameState.time * 6);
       ctx.fillStyle = `rgba(255, 224, 166, ${0.55 + 0.45 * pulse})`;
       ctx.font = "16px monospace";
-      ctx.fillText("Press R for a new run or SPACE for title", canvas.width * 0.5, panelY + 172);
+      ctx.fillText(
+        gameState.inputDevice === "gamepad" ? "Press A for a new run or B for title" : "Press R for a new run or SPACE for title",
+        canvas.width * 0.5,
+        panelY + 172
+      );
     }
 
     ctx.textAlign = "start";
@@ -1290,6 +1331,7 @@ export function createRenderer(canvas, gameState) {
       renderDrops();
       renderWeaponReticle();
       renderEntities();
+      renderAutoAimLock();
       renderShoutWaves();
       renderPlayerReloadIndicator();
       renderLingeringZones();
