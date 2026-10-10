@@ -14,6 +14,7 @@ import { createInitialState } from "./core/state.js";
 import { updatePlayerMovement } from "./entities/player.js";
 import { updateCollisionSystem } from "./systems/collisionSystem.js";
 import { createDebugSystem, DEBUG_MENU_ITEMS } from "./systems/debugSystem.js";
+import { updateBossDirector } from "./systems/bosses/bossSystem.js";
 import { updateEnemies, updateEnemySpawning } from "./systems/enemySystem.js";
 import { updateEffects, updateFloatingTexts, updateSlashEffects } from "./systems/effectSystem.js";
 import { updateIndicators } from "./systems/indicatorSystem.js";
@@ -821,6 +822,7 @@ function update(dt) {
   updateShoutWaves(services, dt);
   updateLingeringZones(services, dt);
   updateBurningTrees(world, dt);
+  updateBossDirector(gameState, dt, { enabled: !isDebugMode || debugSystem.isDirectorEnabled() });
   updateEnemySpawning(gameState, dt, { enableSpawns: !isDebugMode || debugSystem.isDirectorEnabled() });
   updateEnemies(gameState, dt);
 

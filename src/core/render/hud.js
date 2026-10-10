@@ -270,6 +270,62 @@ function drawPerkPoints(ctx, gameState, view) {
   ctx.restore();
 }
 
+function drawBossUi(ctx, gameState, view) {
+  const state = gameState.systems?.boss;
+  if (!state) {
+    return;
+  }
+  const cx = view.width * 0.5;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const boss = state.activeBoss;
+  if (boss && boss.maxHp > 0) {
+    const width = Math.min(560, view.width - 320);
+    const x = cx - width * 0.5;
+    const y = HUD.margin + 56;
+    const ratio = clamp01(boss.hp / boss.maxHp);
+    ctx.font = `bold 14px ${FONT}`;
+    ctx.fillStyle = boss.invulnerableTimer > 0 ? "#bff0ff" : "#ffd6f7";
+    ctx.fillText(boss.name || boss.bossId, cx, y - 10);
+    ctx.fillStyle = "rgba(8, 19, 33, 0.78)";
+    ctx.fillRect(x - 2, y - 2, width + 4, 16);
+    ctx.fillStyle = boss.invulnerableTimer > 0 ? "#9fdcff" : boss.color || "#c58cff";
+    ctx.fillRect(x, y, width * ratio, 12);
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - 2, y - 2, width + 4, 16);
+    (boss.phaseMarkers || []).forEach((marker) => {
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.fillRect(x + width * marker - 1, y - 4, 2, 20);
+    });
+  }
+
+  if (state.warning) {
+    const pulse = 0.5 + 0.5 * Math.sin(gameState.time * 10);
+    ctx.font = `bold 34px ${FONT}`;
+    ctx.fillStyle = `rgba(255, 90, 120, ${0.65 + pulse * 0.35})`;
+    ctx.fillText("WARNING", cx, view.height * 0.28);
+    ctx.font = `16px ${FONT}`;
+    ctx.fillStyle = "#ffd6dc";
+    ctx.fillText(`${state.warning.name} approaches`, cx, view.height * 0.28 + 30);
+  }
+
+  if (state.banner) {
+    const fade = clamp01(Math.min(state.banner.timer, state.banner.duration - state.banner.timer) * 3);
+    ctx.globalAlpha = fade;
+    ctx.font = `bold ${state.banner.kind === "defeat" ? 40 : 30}px ${FONT}`;
+    ctx.fillStyle = state.banner.kind === "defeat" ? "#9ff5c8" : "#ffd6f7";
+    ctx.fillText(state.banner.text, cx, view.height * 0.3);
+    if (state.banner.sub) {
+      ctx.font = `15px ${FONT}`;
+      ctx.fillStyle = "#e9f6ff";
+      ctx.fillText(state.banner.sub, cx, view.height * 0.3 + 30);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 export function renderHud(ctx, view, gameState, weaponSystem, { isDebugMode = false } = {}) {
   if (!weaponSystem || gameState.titleScreen || gameState.paused) {
     return;
@@ -279,6 +335,7 @@ export function renderHud(ctx, view, gameState, weaponSystem, { isDebugMode = fa
   ctx.save();
   drawVitals(ctx, gameState, HUD.margin, HUD.margin);
   drawRunInfo(ctx, gameState, view);
+  drawBossUi(ctx, gameState, view);
   drawPerkPoints(ctx, gameState, view);
   drawSkillTiles(ctx, gameState, view, usingGamepad);
   drawWeaponBar(ctx, gameState, weaponSystem, view, usingGamepad);

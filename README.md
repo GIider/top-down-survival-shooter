@@ -48,6 +48,15 @@ and turn faster. The value is stored in `localStorage` and applies to controller
 
 ---
 
+## 👹 Bosses
+
+Bosses are set pieces defined in `src/systems/bosses/` (catalog, triggers, spawn modifiers, attack-pattern primitives).
+The schedule lives in `GAME_CONFIG.bosses.schedule` (`time`, `kills`, `level` or `custom` triggers). The first boss,
+**The Kaleidoscope**, appears at 3:00 and every 6:00 after being defeated. While it lives, regular spawns are reduced
+and restricted to chasers/slimes. In debug mode use **Pause → Debug → Spawn Kaleidoscope Boss**.
+
+---
+
 ## 🛠 Debug Mode
 
 Enable debug mode by appending the query parameter:

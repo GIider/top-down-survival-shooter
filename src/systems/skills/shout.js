@@ -140,9 +140,11 @@ export function updateShoutWaves(services, dt) {
       const distance = Math.hypot(enemy.x - wave.x, enemy.y - wave.y);
       if (distance <= radius + enemy.radius + wave.thickness * 0.25) {
         wave.stunnedEnemies.add(enemy);
-        enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, wave.stunDuration);
+        if (!enemy.immuneToCC) {
+          enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, wave.stunDuration);
+        }
         if (wave.dealHalfMaxHp) {
-          enemy.hp -= enemy.maxHp * 0.5;
+          enemy.hp -= enemy.maxHp * (enemy.immuneToCC ? 0.03 : 0.5);
         }
         if (wave.healPerEnemy > 0) {
           const maxHp = player.maxHp + player.maxHpBonus;

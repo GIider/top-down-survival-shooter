@@ -405,6 +405,32 @@ export const GAME_CONFIG = {
       trailLifetime: 0.22,
     },
   },
+  bosses: {
+    maxBullets: 500,
+    warningDuration: 3,
+    defeatBannerDuration: 3.5,
+    // trigger types: time (seconds), kills (run kills), level (player level), custom (test(gameState) => bool).
+    // `repeat` re-arms the trigger after each defeat; `maxSpawns` caps spawns per run.
+    schedule: [{ boss: "kaleidoscope", trigger: { type: "time", at: 180, repeat: 360 }, maxSpawns: 3 }],
+    nukeMaxHpFraction: 0.05,
+    kaleidoscope: {
+      hpBase: 5500,
+      hpDifficultyScale: 120,
+      radius: 46,
+      color: "#c58cff",
+      speed: 70,
+      preferredDistance: 280,
+      contactDamage: 20,
+      xp: 400,
+      transitionDuration: 2,
+      bulletDamage: 7,
+      strikeDamage: 16,
+      beamTickDamage: 9,
+      bulletColor: "#ff6fe9",
+      bulletAltColor: "#6ff3ff",
+      spawnModifier: { spawnRateMultiplier: 0.3, maxEnemiesMultiplier: 0.5, allowedTypes: ["chaser", "slime"], clearExisting: "fade" },
+    },
+  },
   enemies: {
     spawn: {
       recycleDistanceMultiplier: 1.8,

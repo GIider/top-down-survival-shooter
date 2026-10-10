@@ -59,7 +59,7 @@ export function updateProjectiles(services, dt) {
     if (projectile.owner === "player" && projectile.isFireArrow) {
       igniteTreesAt(world, projectile.position.x, projectile.position.y, projectile.radius + 6);
     }
-    if (isProjectileBlockedByMountain(world, projectile.position.x, projectile.position.y, projectile.radius)) {
+    if (!projectile.ignoreTerrain && isProjectileBlockedByMountain(world, projectile.position.x, projectile.position.y, projectile.radius)) {
       obstacleCollision = getMountainCollisionNormal(world, projectile.position.x, projectile.position.y, projectile.radius);
       if (projectile.owner === "player" && projectile.bounceRemaining > 0) {
         const collision = obstacleCollision;

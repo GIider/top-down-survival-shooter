@@ -108,7 +108,9 @@ function applyBlinkExplosion(gameState, x, y) {
       continue;
     }
 
-    enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, stunDuration);
+    if (!enemy.immuneToCC) {
+      enemy.stunnedTimer = Math.max(enemy.stunnedTimer || 0, stunDuration);
+    }
     enemy.hp = Math.max(1, enemy.hp - damage);
   }
 }

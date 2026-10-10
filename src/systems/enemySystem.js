@@ -7,6 +7,7 @@ import { updateChaserSlimeBehavior } from "./enemies/chaserSlime.js";
 import { updateMortarBehavior } from "./enemies/mortar.js";
 import { updateShooterBehavior } from "./enemies/shooter.js";
 import { updateShotgunShooterBehavior } from "./enemies/shotgunShooter.js";
+import { getSpawnModifier, updateBoss } from "./bosses/bossSystem.js";
 import { computeFlyingBomberPath, updateFlyingBomberBehavior } from "./enemies/flyingBomber.js";
 
 const SPAWN_CONFIG = GAME_CONFIG.enemies.spawn;
@@ -182,19 +183,35 @@ export function updateEnemySpawning(gameState, dt, options = {}) {
   const enemyAiState = ensureEnemyAiState(gameState);
   const world = gameState.systems.world;
 
-  const spawnRate = SPAWN_CONFIG.rateBase + stage * SPAWN_CONFIG.rateStageScale + difficulty * SPAWN_CONFIG.rateDifficultyScale;
-  const maxEnemies = Math.floor(SPAWN_CONFIG.maxEnemiesBase + stage * SPAWN_CONFIG.maxEnemiesStageScale + difficulty * SPAWN_CONFIG.maxEnemiesDifficultyScale);
+  const modifier = getSpawnModifier(gameState);
+  const spawnRate =
+    (SPAWN_CONFIG.rateBase + stage * SPAWN_CONFIG.rateStageScale + difficulty * SPAWN_CONFIG.rateDifficultyScale) *
+    (modifier?.spawnRateMultiplier ?? 1);
+  const maxEnemies = Math.floor(
+    (SPAWN_CONFIG.maxEnemiesBase + stage * SPAWN_CONFIG.maxEnemiesStageScale + difficulty * SPAWN_CONFIG.maxEnemiesDifficultyScale) *
+      (modifier?.maxEnemiesMultiplier ?? 1)
+  );
+  if (spawnRate <= 0) {
+    return;
+  }
+  const regularEnemyCount = () => gameState.enemies.reduce((count, enemy) => (enemy.isBoss ? count : count + 1), 0);
 
   gameState.waveTimer += dt;
   const interval = Math.max(0.05, 1 / spawnRate);
 
-  while (gameState.waveTimer >= interval && gameState.enemies.length < maxEnemies) {
+  while (gameState.waveTimer >= interval && regularEnemyCount() < maxEnemies) {
     gameState.waveTimer -= interval;
     const position = randomSpawnPosition(gameState.player, enemyAiState.playerVelocity);
     const candidates = ENEMY_SPAWN_WEIGHTS
       .filter((entry) => entry.minStage <= stage)
+      .filter((entry) => !modifier?.allowedTypes || modifier.allowedTypes.includes(entry.type))
+      .filter((entry) => !modifier?.blockedTypes || !modifier.blockedTypes.includes(entry.type))
       .map((entry) => ({ item: entry, weight: entry.weight }));
 
+    if (candidates.length === 0) {
+      gameState.waveTimer = 0;
+      break;
+    }
     const picked = weightedPick(candidates);
     let spawnX = position.x;
     let spawnY = position.y;
@@ -247,6 +264,10 @@ export function updateEnemies(gameState, dt) {
     }
 
     if (enemy.skipRecycle) {
+      if (enemy.isBoss) {
+        updateBoss(gameState, enemy, player, world, dt, enemyAiState.playerVelocity);
+        continue;
+      }
       if (enemy.isDone) {
         gameState.enemies.splice(index, 1);
         continue;

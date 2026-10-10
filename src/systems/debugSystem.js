@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../core/constants.js";
 import { createEnemy } from "../entities/enemy.js";
 import { PICKUP_POOL } from "./pickups/pickupCatalog.js";
+import { spawnBoss } from "./bosses/bossSystem.js";
 import { computeFlyingBomberPath } from "./enemies/flyingBomber.js";
 
 function spawnDebugEnemy(services, type) {
@@ -67,6 +68,7 @@ export const DEBUG_MENU_ITEMS = [
   { id: "bomber", label: "Spawn Bomber", kind: "enemy" },
   { id: "mortar", label: "Spawn Mortar", kind: "enemy" },
   { id: "flyingBomber", label: "Spawn Flying Bomber", kind: "enemy" },
+  { id: "boss_kaleidoscope", label: "Spawn Kaleidoscope Boss", kind: "boss" },
   { id: "levelUp", label: "Level Up Player", kind: "action" },
   { id: "pickups", label: "Spawn Pickups", kind: "action" },
 ];
@@ -105,6 +107,8 @@ export function createDebugSystem(services) {
         applyDebugLevelUp(services);
       } else if (id === "pickups") {
         spawnDebugPickups(services);
+      } else if (item.kind === "boss") {
+        spawnBoss(services.gameState, id.replace("boss_", ""));
       } else if (item.kind === "enemy") {
         spawnDebugEnemy(services, id);
       }

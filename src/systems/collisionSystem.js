@@ -5,6 +5,7 @@ import { maybeSpawnPickupOnEnemyDeath } from "./pickups/index.js";
 import { getTreeEffectsAt, igniteTreesAt, resolvePositionAgainstMountains } from "./worldSystem.js";
 import { createDamageContext, PERK_HOOKS } from "./perks/contracts.js";
 import { playSfx } from "../audio/sfx.js";
+import { onBossKilled } from "./bosses/bossSystem.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
@@ -126,6 +127,9 @@ function getClosestPointOnSegment(px, py, ax, ay, bx, by) {
 }
 
 function applyEnemyKnockback(enemy, nx, ny, knockbackPerSecond, dt, world) {
+  if (enemy.immuneToCC) {
+    return;
+  }
   if (!Number.isFinite(nx) || !Number.isFinite(ny)) {
     return;
   }
@@ -284,6 +288,10 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
         color: effect.color,
       }))
     );
+  }
+
+  if (enemy.isBoss) {
+    onBossKilled(gameState, enemy, player);
   }
 
   playSfx(enemy.type === "bomber" ? "explosion" : "enemyDeath");

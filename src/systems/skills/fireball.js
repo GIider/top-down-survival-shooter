@@ -120,7 +120,7 @@ export function updateLingeringZones(services, dt) {
         enemy.hp = Math.max(1, enemy.hp - zone.damagePerSecond * dt);
       }
 
-      if (zone.type === "ice") {
+      if (zone.type === "ice" && !enemy.immuneToCC) {
         enemy.externalSlowMultiplier = Math.min(enemy.externalSlowMultiplier ?? 1, zone.slowMultiplier ?? 1);
       }
     }

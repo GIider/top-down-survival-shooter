@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from "../../core/constants.js";
+import { playSfx } from "../../audio/sfx.js";
 import { getMovementSlowMultiplier, resolvePositionAgainstMountains } from "../worldSystem.js";
 
 export function spawnFloatingText(gameState, text, x, y, color, size = 24, kind = "damage") {
@@ -44,4 +45,12 @@ export function pickShooterAimPoint(originX, originY, player, playerVelocity, pr
     x: player.x + playerVelocity.x * travelTime,
     y: player.y + playerVelocity.y * travelTime,
   };
+}
+
+export function damagePlayer(gameState, player, amount, { shake = 2.4, flash = 0.22 } = {}) {
+  player.hp -= amount;
+  spawnFloatingText(gameState, `-${Math.max(1, Math.round(amount))}`, player.x, player.y - player.radius - 8, "255,142,150", 22, "damage");
+  gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + shake);
+  gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + flash);
+  playSfx("playerHurt");
 }

@@ -109,6 +109,54 @@ function drawBorderProgress(ctx, x, y, width, height, progress, color, lineWidth
   ctx.stroke();
 }
 
+function drawBoss(ctx, boss, time) {
+  const invulnerable = boss.invulnerableTimer > 0;
+  const spin = time * 0.6;
+  ctx.save();
+  ctx.translate(boss.x, boss.y);
+
+  const glow = ctx.createRadialGradient(0, 0, boss.radius * 0.4, 0, 0, boss.radius * 2.1);
+  glow.addColorStop(0, "rgba(255, 180, 245, 0.35)");
+  glow.addColorStop(1, "rgba(255, 180, 245, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, boss.radius * 2.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.rotate(spin);
+  ctx.fillStyle = boss.color;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (Math.PI * 2 * i) / 6;
+    ctx.lineTo(Math.cos(angle) * boss.radius, Math.sin(angle) * boss.radius);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.rotate(-spin * 2.2);
+  ctx.fillStyle = "rgba(20, 8, 40, 0.75)";
+  ctx.beginPath();
+  for (let i = 0; i < 4; i += 1) {
+    const angle = (Math.PI * 2 * i) / 4;
+    ctx.lineTo(Math.cos(angle) * boss.radius * 0.55, Math.sin(angle) * boss.radius * 0.55);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  if (invulnerable) {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 14);
+    ctx.strokeStyle = `rgba(190, 240, 255, ${0.5 + pulse * 0.4})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, boss.radius + 12, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 export function createRenderer(canvasElement, gameState, view, { debugSystem = null } = {}) {
   const ctx = canvasElement.getContext("2d");
   // Logical size (view) is what all layout code reads as canvas.width/height.
@@ -150,15 +198,21 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
   function renderIndicators() {
     gameState.indicators.forEach((indicator) => {
       const progress = Math.max(0, Math.min(1, indicator.elapsed / indicator.duration));
+      const rgb = /^\d/.test(indicator.color || "") ? indicator.color : "255,70,70";
+      const remaining = indicator.duration - indicator.elapsed;
+      // Telegraphs brighten as they approach impact and flash in the final moments.
+      const flash = remaining < 0.15 ? 0.5 + 0.5 * Math.sin(indicator.elapsed * 60) : 0;
+      const fillAlpha = 0.1 + progress * 0.3 + flash * 0.2;
+      const strokeAlpha = 0.45 + progress * 0.4;
 
       if (indicator.type === "circle") {
-        ctx.strokeStyle = "rgba(255, 70, 70, 0.7)";
+        ctx.strokeStyle = `rgba(${rgb}, 0.7)`;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(indicator.position.x, indicator.position.y, indicator.size.radius, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.fillStyle = "rgba(255, 70, 70, 0.25)";
+        ctx.fillStyle = `rgba(${rgb}, ${indicator.source === "boss" ? fillAlpha : 0.25})`;
         ctx.beginPath();
         ctx.moveTo(indicator.position.x, indicator.position.y);
         ctx.arc(
@@ -170,8 +224,49 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
         );
         ctx.closePath();
         ctx.fill();
+      } else if (indicator.type === "rect") {
+        ctx.save();
+        ctx.translate(indicator.position.x, indicator.position.y);
+        ctx.rotate(indicator.angle);
+        ctx.fillStyle = `rgba(${rgb}, ${fillAlpha})`;
+        ctx.fillRect(0, -indicator.width * 0.5, indicator.length, indicator.width);
+        ctx.strokeStyle = `rgba(${rgb}, ${strokeAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, -indicator.width * 0.5, indicator.length, indicator.width);
+        ctx.restore();
+      } else if (indicator.type === "wedge") {
+        const half = Math.abs(indicator.arc) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(indicator.position.x, indicator.position.y);
+        ctx.arc(indicator.position.x, indicator.position.y, indicator.size.radius, indicator.angle - half, indicator.angle + half);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${rgb}, ${fillAlpha * 0.8})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${rgb}, ${strokeAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (indicator.type === "ring") {
+        ctx.strokeStyle = `rgba(${rgb}, ${0.3 + progress * 0.5 + flash * 0.2})`;
+        ctx.lineWidth = indicator.size.thickness || 6;
+        ctx.beginPath();
+        ctx.arc(indicator.position.x, indicator.position.y, indicator.size.radius, 0, Math.PI * 2);
+        ctx.stroke();
       }
     });
+
+    const bossBeams = gameState.systems?.boss?.beams;
+    if (bossBeams) {
+      bossBeams.forEach((beam) => {
+        ctx.save();
+        ctx.translate(beam.x, beam.y);
+        ctx.rotate(beam.angle);
+        ctx.fillStyle = "rgba(255, 90, 170, 0.35)";
+        ctx.fillRect(0, -beam.width * 0.5, beam.length, beam.width);
+        ctx.fillStyle = "rgba(255, 230, 250, 0.9)";
+        ctx.fillRect(0, -beam.width * 0.17, beam.length, beam.width * 0.34);
+        ctx.restore();
+      });
+    }
   }
 
   function renderDrops() {
@@ -547,6 +642,11 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
         ctx.beginPath();
         ctx.arc(enemy.x, enemy.y, radius, 0, Math.PI * 2);
         ctx.stroke();
+      }
+
+      if (enemy.isBoss) {
+        drawBoss(ctx, enemy, gameState.time);
+        return;
       }
 
       if (enemy.type === "flyingBomber") {
@@ -1032,12 +1132,14 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
       const iy = centerY + dy * inv;
       const angle = Math.atan2(dy, dx);
 
-      const size = enemy.type === "mortar" ? 10 : (enemy.type === "bomber" || enemy.type === "flyingBomber") ? 9 : 8;
+      const size = enemy.isBoss ? 16 : enemy.type === "mortar" ? 10 : (enemy.type === "bomber" || enemy.type === "flyingBomber") ? 9 : 8;
       ctx.save();
       ctx.translate(ix, iy);
       ctx.rotate(angle);
       ctx.fillStyle =
-        enemy.type === "mortar"
+        enemy.isBoss
+          ? "rgba(255, 140, 240, 1)"
+          : enemy.type === "mortar"
           ? "rgba(255, 178, 122, 0.95)"
           : enemy.type === "flyingBomber"
             ? "rgba(255, 34, 68, 0.95)"

@@ -167,6 +167,18 @@ function updateNukeWaves(gameState, dt) {
         continue;
       }
 
+      if (enemy.isBoss) {
+        // Bosses shrug off the wipe: one chunk of max HP per wave instead.
+        if (!wave.bossesHit) {
+          wave.bossesHit = new Set();
+        }
+        if (!wave.bossesHit.has(enemy)) {
+          wave.bossesHit.add(enemy);
+          enemy.hp -= enemy.maxHp * GAME_CONFIG.bosses.nukeMaxHpFraction;
+        }
+        continue;
+      }
+
       gameState.effects.push({
         x: enemy.x,
         y: enemy.y,
