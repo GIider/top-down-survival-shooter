@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createSfxEngine, playSfx } from "../../src/audio/sfx.js";
+import { SFX_VOLUME_STEPS, createSfxEngine, playSfx } from "../../src/audio/sfx.js";
+import { renderPauseOverlay } from "../../src/core/render/titleOverlays.js";
 import { SOUND_CATALOG } from "../../src/audio/soundCatalog.js";
 import { formatCatalogModule, parseSoundExport } from "../../src/audio/soundCatalogFormat.js";
 import { ZZFX_PARAMS, buildSamples, normalizeParams, samplesToWav, trimParams } from "../../src/audio/zzfx.js";
@@ -199,6 +200,60 @@ runTest("engine overrides replace catalog params", () => {
   engine.play("blink");
   // 0.5 s sustain at 44.1 kHz dwarfs the catalog's ~0.1 s blink.
   assert.ok(created.sources[0].buffer.length > 20000);
+});
+
+runTest("default volume is quiet and volume/mute persist across engines", () => {
+  const store = new Map();
+  const storage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, value),
+  };
+  const first = createSfxEngine({ storage });
+  assert.ok(first.getVolume() <= 0.35, `default volume ${first.getVolume()} should be quiet`);
+  assert.equal(first.getVolume() * SFX_VOLUME_STEPS, Math.round(first.getVolume() * SFX_VOLUME_STEPS), "default sits on a menu step");
+
+  first.setVolume(0.7);
+  first.setMuted(true);
+  const second = createSfxEngine({ storage });
+  assert.equal(second.getVolume(), 0.7);
+  assert.equal(second.isMuted(), true);
+  second.setVolume(5);
+  assert.equal(second.getVolume(), 1, "volume is clamped");
+});
+
+runTest("pause settings panel renders both sliders and records their hit rects", () => {
+  const ctx = new Proxy(
+    {},
+    {
+      get: (target, prop) => (prop in target ? target[prop] : () => {}),
+      set: (target, prop, value) => {
+        target[prop] = value;
+        return true;
+      },
+    }
+  );
+  const gameState = {
+    paused: true,
+    gameOver: false,
+    titleScreen: false,
+    player: { perkModalOpen: false },
+    pauseView: "settings",
+    pauseSettingsRow: 1,
+    settings: { autoAimSnap: 6 },
+    inputDevice: "keyboard",
+  };
+  renderPauseOverlay(ctx, { width: 1280, height: 720 }, gameState, () => {}, () => {});
+  assert.ok(gameState.pauseSettingsSliderRect, "aim slider rect recorded");
+  assert.ok(gameState.pauseSettingsVolumeRect, "volume slider rect recorded");
+  assert.ok(gameState.pauseSettingsBackRect, "back rect recorded");
+  assert.ok(
+    gameState.pauseSettingsVolumeRect.y > gameState.pauseSettingsSliderRect.y + gameState.pauseSettingsSliderRect.height,
+    "volume slider sits below the aim slider"
+  );
+  assert.ok(
+    gameState.pauseSettingsVolumeRect.y + gameState.pauseSettingsVolumeRect.height < gameState.pauseSettingsBackRect.y,
+    "volume slider does not overlap the back button"
+  );
 });
 
 runTest("default engine is a safe no-op without Web Audio", () => {

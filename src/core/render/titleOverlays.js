@@ -1,3 +1,4 @@
+import { SFX_VOLUME_STEPS, sfx } from "../../audio/sfx.js";
 import { getAutoAimParams } from "../../systems/autoAim.js";
 import { AUTO_AIM_SNAP_MAX } from "../settings.js";
 import { GAME_CONFIG } from "../constants.js";
@@ -334,6 +335,7 @@ export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendP
   }
 
   gameState.pauseSettingsSliderRect = null;
+  gameState.pauseSettingsVolumeRect = null;
   gameState.pauseSettingsBackRect = null;
 
   ctx.textAlign = "center";
@@ -362,40 +364,32 @@ export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendP
   ctx.textAlign = "start";
 }
 
-function renderPauseSettings(ctx, canvas, gameState, usingGamepad) {
-  const snap = gameState.settings?.autoAimSnap ?? 0;
-  const cx = canvas.width * 0.5;
+// Draws one labelled slider row inside the settings panel and returns the track rect.
+function drawSettingsSliderRow(ctx, panel, { top, title, value, max, leftLabel, rightLabel, valueText, active, dimmed = false }) {
+  const cx = panel.x + panel.width * 0.5;
 
-  gameState.pauseSettingsButtonRect = null;
+  if (active) {
+    ctx.strokeStyle = "rgba(255, 226, 166, 0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(panel.x + 14, panel.y + top + 6, panel.width - 28, 186);
+  }
 
   ctx.textAlign = "center";
-  ctx.fillStyle = "#dff8ff";
-  ctx.font = "bold 46px monospace";
-  ctx.fillText("SETTINGS", cx, 112);
-
-  const panel = { x: cx - 340, y: 160, width: 680, height: 330 };
-  ctx.fillStyle = "rgba(8, 18, 29, 0.92)";
-  ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
-  ctx.strokeStyle = "rgba(150, 228, 255, 0.35)";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(panel.x, panel.y, panel.width, panel.height);
-
   ctx.fillStyle = "#ffe7c4";
   ctx.font = "bold 18px monospace";
-  ctx.fillText("Controller auto-aim snappiness", cx, panel.y + 46);
+  ctx.fillText(title, cx, panel.y + top + 34);
 
-  const track = { x: panel.x + 80, y: panel.y + 100, width: panel.width - 160, height: 16 };
-  gameState.pauseSettingsSliderRect = track;
+  const track = { x: panel.x + 80, y: panel.y + top + 60, width: panel.width - 160, height: 16 };
   ctx.fillStyle = "rgba(18, 30, 46, 0.95)";
   ctx.fillRect(track.x, track.y, track.width, track.height);
-  const fillWidth = track.width * (snap / AUTO_AIM_SNAP_MAX);
-  ctx.fillStyle = "rgba(88, 171, 206, 0.85)";
+  const fillWidth = track.width * (value / max);
+  ctx.fillStyle = dimmed ? "rgba(110, 124, 138, 0.7)" : "rgba(88, 171, 206, 0.85)";
   ctx.fillRect(track.x, track.y, fillWidth, track.height);
   ctx.strokeStyle = "rgba(150, 228, 255, 0.6)";
   ctx.lineWidth = 1.5;
   ctx.strokeRect(track.x, track.y, track.width, track.height);
-  for (let i = 0; i <= AUTO_AIM_SNAP_MAX; i += 1) {
-    const tx = track.x + (track.width * i) / AUTO_AIM_SNAP_MAX;
+  for (let i = 0; i <= max; i += 1) {
+    const tx = track.x + (track.width * i) / max;
     ctx.fillStyle = "rgba(150, 228, 255, 0.5)";
     ctx.fillRect(tx - 1, track.y + track.height + 4, 2, 6);
   }
@@ -405,28 +399,83 @@ function renderPauseSettings(ctx, canvas, gameState, usingGamepad) {
   ctx.font = "12px monospace";
   ctx.fillStyle = "#b8d4e6";
   ctx.textAlign = "left";
-  ctx.fillText("Off", track.x - 4, track.y + track.height + 28);
+  ctx.fillText(leftLabel, track.x - 4, track.y + track.height + 28);
   ctx.textAlign = "right";
-  ctx.fillText("Max snap", track.x + track.width + 4, track.y + track.height + 28);
+  ctx.fillText(rightLabel, track.x + track.width + 4, track.y + track.height + 28);
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#effcff";
-  ctx.font = "bold 26px monospace";
-  ctx.fillText(snap === 0 ? "Off" : `${snap} / ${AUTO_AIM_SNAP_MAX}`, cx, panel.y + 190);
+  ctx.font = "bold 24px monospace";
+  ctx.fillText(valueText, cx, panel.y + top + 134);
+  return track;
+}
+
+function renderPauseSettings(ctx, canvas, gameState, usingGamepad) {
+  const snap = gameState.settings?.autoAimSnap ?? 0;
+  const volumeStep = Math.round(sfx.getVolume() * SFX_VOLUME_STEPS);
+  const muted = sfx.isMuted();
+  const activeRow = gameState.pauseSettingsRow ?? 0;
+  const cx = canvas.width * 0.5;
+
+  gameState.pauseSettingsButtonRect = null;
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#dff8ff";
+  ctx.font = "bold 46px monospace";
+  ctx.fillText("SETTINGS", cx, 100);
+
+  const panel = { x: cx - 340, y: 128, width: 680, height: 510 };
+  ctx.fillStyle = "rgba(8, 18, 29, 0.92)";
+  ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
+  ctx.strokeStyle = "rgba(150, 228, 255, 0.35)";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(panel.x, panel.y, panel.width, panel.height);
+
+  gameState.pauseSettingsSliderRect = drawSettingsSliderRow(ctx, panel, {
+    top: 0,
+    title: "Controller auto-aim snappiness",
+    value: snap,
+    max: AUTO_AIM_SNAP_MAX,
+    leftLabel: "Off",
+    rightLabel: "Max snap",
+    valueText: snap === 0 ? "Off" : `${snap} / ${AUTO_AIM_SNAP_MAX}`,
+    active: activeRow === 0,
+  });
 
   ctx.font = "13px monospace";
   ctx.fillStyle = "rgba(212, 233, 255, 0.85)";
   if (snap === 0) {
-    ctx.fillText("Aim follows the right stick exactly.", cx, panel.y + 218);
+    ctx.fillText("Aim follows the right stick exactly.", cx, panel.y + 158);
   } else {
     const params = getAutoAimParams(snap / AUTO_AIM_SNAP_MAX);
     ctx.fillText(
       `Cone ±${Math.round((params.coneHalfAngle * 180) / Math.PI)}°  ·  Pull ${Math.round(params.pull * 100)}%  ·  Turn ${Math.round(params.turnRate)}/s`,
       cx,
-      panel.y + 218
+      panel.y + 158
     );
-    ctx.fillText("Higher = wider catch cone and faster snapping onto enemies.", cx, panel.y + 240);
+    ctx.fillText("Higher = wider catch cone and faster snapping onto enemies.", cx, panel.y + 178);
   }
+
+  gameState.pauseSettingsVolumeRect = drawSettingsSliderRow(ctx, panel, {
+    top: 206,
+    title: "Sound effects volume",
+    value: volumeStep,
+    max: SFX_VOLUME_STEPS,
+    leftLabel: "Silent",
+    rightLabel: "Full",
+    valueText: muted ? "Muted" : volumeStep === 0 ? "Silent" : `${volumeStep} / ${SFX_VOLUME_STEPS}`,
+    active: activeRow === 1,
+    dimmed: muted,
+  });
+
+  ctx.textAlign = "center";
+  ctx.font = "13px monospace";
+  ctx.fillStyle = "rgba(212, 233, 255, 0.85)";
+  ctx.fillText(
+    muted ? "Sound is muted - press M or move the slider to unmute." : "Press M at any time to mute or unmute.",
+    cx,
+    panel.y + 206 + 158
+  );
 
   const back = { x: cx - 90, y: panel.y + panel.height - 62, width: 180, height: 36 };
   gameState.pauseSettingsBackRect = back;
@@ -444,7 +493,9 @@ function renderPauseSettings(ctx, canvas, gameState, usingGamepad) {
   ctx.font = "13px monospace";
   ctx.fillStyle = "rgba(212, 233, 255, 0.8)";
   ctx.fillText(
-    usingGamepad ? "D-pad / stick left-right to adjust" : "Left / Right arrows or drag the slider to adjust",
+    usingGamepad
+      ? "D-pad / stick up-down to pick a setting, left-right to adjust"
+      : "Up / Down to pick a setting, Left / Right or drag a slider to adjust",
     cx,
     panel.y + panel.height + 28
   );

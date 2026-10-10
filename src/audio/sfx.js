@@ -5,7 +5,9 @@ export const SFX_SETTINGS_KEY = "tdss.sfx.settings";
 // Working copy written by the Sound Showcase page; only read by the game when `?sfxLab=1`.
 export const SFX_OVERRIDES_KEY = "tdss.sfx.overrides";
 
-const DEFAULT_SETTINGS = { volume: 0.6, muted: false };
+// Number of discrete volume steps exposed by the pause-menu slider (0 = silent, N = full).
+export const SFX_VOLUME_STEPS = 10;
+const DEFAULT_SETTINGS = { volume: 0.3, muted: false };
 const VARIANTS_PER_SOUND = 3;
 const MAX_VOICES = 24;
 const PITCH_JITTER = 0.03;

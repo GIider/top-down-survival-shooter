@@ -1,4 +1,4 @@
-import { playSfx } from "./audio/sfx.js";
+import { playSfx, SFX_VOLUME_STEPS, sfx } from "./audio/sfx.js";
 import { CANVAS, GAME_CONFIG } from "./core/constants.js";
 import { createFpsTracker } from "./core/fpsTracker.js";
 import { createGameServices } from "./core/gameServices.js";
@@ -333,6 +333,22 @@ function setAutoAimSnap(value) {
   saveSettings(gameState.settings);
 }
 
+function getVolumeStep() {
+  return Math.round(sfx.getVolume() * SFX_VOLUME_STEPS);
+}
+
+function setVolumeStep(value) {
+  const next = Math.max(0, Math.min(SFX_VOLUME_STEPS, Math.round(value)));
+  if (next === getVolumeStep() && !sfx.isMuted()) {
+    return;
+  }
+  sfx.setVolume(next / SFX_VOLUME_STEPS);
+  // Touching the slider is an explicit request to hear sound again.
+  sfx.setMuted(false);
+  sfx.unlock();
+  playSfx("uiClick");
+}
+
 function pointInRect(rect, x, y, pad = 0) {
   return !!rect && x >= rect.x - pad && x <= rect.x + rect.width + pad && y >= rect.y - pad && y <= rect.y + rect.height + pad;
 }
@@ -344,19 +360,37 @@ function handlePauseMenu({ nav, keyNav, confirm, clicked }) {
   if (gameState.pauseView !== "settings") {
     if (activate || (clicked && pointInRect(gameState.pauseSettingsButtonRect, x, y))) {
       gameState.pauseView = "settings";
+      gameState.pauseSettingsRow = 0;
     }
     return;
   }
 
-  const dx = nav.dx || keyNav.dx;
-  if (dx !== 0) {
-    setAutoAimSnap(gameState.settings.autoAimSnap + dx);
+  const dy = nav.dy || keyNav.dy;
+  if (dy !== 0) {
+    gameState.pauseSettingsRow = Math.max(0, Math.min(1, gameState.pauseSettingsRow + dy));
   }
 
-  const track = gameState.pauseSettingsSliderRect;
-  if (input.pointer.down && input.activeDevice === "keyboard" && pointInRect(track, x, y, 14)) {
-    const ratio = Math.max(0, Math.min(1, (x - track.x) / track.width));
-    setAutoAimSnap(ratio * AUTO_AIM_SNAP_MAX);
+  const dx = nav.dx || keyNav.dx;
+  if (dx !== 0) {
+    if (gameState.pauseSettingsRow === 0) {
+      setAutoAimSnap(gameState.settings.autoAimSnap + dx);
+    } else {
+      setVolumeStep(getVolumeStep() + dx);
+    }
+  }
+
+  if (input.pointer.down && input.activeDevice === "keyboard") {
+    const aimTrack = gameState.pauseSettingsSliderRect;
+    const volumeTrack = gameState.pauseSettingsVolumeRect;
+    if (pointInRect(aimTrack, x, y, 14)) {
+      gameState.pauseSettingsRow = 0;
+      const ratio = Math.max(0, Math.min(1, (x - aimTrack.x) / aimTrack.width));
+      setAutoAimSnap(ratio * AUTO_AIM_SNAP_MAX);
+    } else if (pointInRect(volumeTrack, x, y, 14)) {
+      gameState.pauseSettingsRow = 1;
+      const ratio = Math.max(0, Math.min(1, (x - volumeTrack.x) / volumeTrack.width));
+      setVolumeStep(ratio * SFX_VOLUME_STEPS);
+    }
   }
 
   if (activate || (clicked && pointInRect(gameState.pauseSettingsBackRect, x, y))) {
