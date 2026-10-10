@@ -130,6 +130,10 @@ export function createInitialState() {
     pauseSettingsVolumeRect: null,
     // Which settings row is focused: 0 = controller auto-aim, 1 = sound volume.
     pauseSettingsRow: 0,
+    pauseMainRow: 0,
+    pauseDebugIndex: 0,
+    pauseDebugButtonRect: null,
+    pauseDebugRects: null,
     pauseSettingsBackRect: null,
     titleSortRects: [],
     titlePerkLibraryToggleRect: null,

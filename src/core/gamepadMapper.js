@@ -77,8 +77,8 @@ export function createGamepadMapper(config = {}) {
       confirm: buttonDown(b, GAMEPAD_BUTTONS.a, t),
       back: buttonDown(b, GAMEPAD_BUTTONS.b, t),
       pause: buttonDown(b, GAMEPAD_BUTTONS.start, t),
-      weaponPrev: buttonDown(b, GAMEPAD_BUTTONS.dpadLeft, t),
-      weaponNext: buttonDown(b, GAMEPAD_BUTTONS.dpadRight, t),
+      dpadLeft: buttonDown(b, GAMEPAD_BUTTONS.dpadLeft, t),
+      dpadRight: buttonDown(b, GAMEPAD_BUTTONS.dpadRight, t),
       dpadUp: buttonDown(b, GAMEPAD_BUTTONS.dpadUp, t),
       dpadDown: buttonDown(b, GAMEPAD_BUTTONS.dpadDown, t),
     };
@@ -104,9 +104,9 @@ export function createGamepadMapper(config = {}) {
     let navDir = null;
     const sx = axes[0] ?? 0;
     const sy = axes[1] ?? 0;
-    if (held.weaponPrev || sx < -cfg.navStickThreshold) {
+    if (held.dpadLeft || sx < -cfg.navStickThreshold) {
       navDir = { dx: -1, dy: 0 };
-    } else if (held.weaponNext || sx > cfg.navStickThreshold) {
+    } else if (held.dpadRight || sx > cfg.navStickThreshold) {
       navDir = { dx: 1, dy: 0 };
     } else if (held.dpadUp || sy < -cfg.navStickThreshold) {
       navDir = { dx: 0, dy: -1 };

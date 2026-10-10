@@ -2,6 +2,7 @@ import { SFX_VOLUME_STEPS, sfx } from "../../audio/sfx.js";
 import { getAutoAimParams } from "../../systems/autoAim.js";
 import { AUTO_AIM_SNAP_MAX } from "../settings.js";
 import { GAME_CONFIG } from "../constants.js";
+import { DEBUG_MENU_ITEMS } from "../../systems/debugSystem.js";
 import { skillPerkCatalog } from "../../systems/perks/skillPerkCatalog.js";
 
 export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines, isDebugMode = false) {
@@ -317,7 +318,50 @@ export function renderPerkLibraryOverlay(ctx, canvas, gameState, wrapTextLines, 
   ctx.textBaseline = "alphabetic";
 }
 
-export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendPanel, renderPickupLegendPanel) {
+function drawMenuButton(ctx, rect, label, { focused = false, usingGamepad = false, checked = null, fontSize = 16 } = {}) {
+  ctx.fillStyle = focused ? "rgba(48, 92, 120, 0.95)" : "rgba(33, 67, 84, 0.9)";
+  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.strokeStyle = focused
+    ? "rgba(255, 226, 166, 0.95)"
+    : usingGamepad
+      ? "rgba(255, 226, 166, 0.45)"
+      : "rgba(150, 228, 255, 0.6)";
+  ctx.lineWidth = focused ? 2.5 : 1.5;
+  ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.fillStyle = "#effcff";
+  ctx.font = `bold ${fontSize}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const text = checked === null ? label : `${checked ? "[x]" : "[ ]"} ${label}`;
+  ctx.fillText(text, rect.x + rect.width * 0.5, rect.y + rect.height * 0.5 + 1);
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawRunStats(ctx, canvas, gameState, y) {
+  const player = gameState.player;
+  const total = Math.floor(gameState.time);
+  const stats = [
+    ["Time", `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`],
+    ["Level", `${player.level}`],
+    ["Enemies", `${gameState.enemies.length}`],
+    ["Perks", `${player.ownedPerks.length}`],
+    ["FPS", `${gameState.fps ?? 0}`],
+  ];
+  const cellWidth = 120;
+  const startX = canvas.width * 0.5 - (cellWidth * stats.length) / 2;
+  ctx.textAlign = "center";
+  stats.forEach(([label, value], i) => {
+    const cx = startX + cellWidth * i + cellWidth * 0.5;
+    ctx.font = "12px monospace";
+    ctx.fillStyle = "#a4c2d7";
+    ctx.fillText(label.toUpperCase(), cx, y);
+    ctx.font = "bold 22px monospace";
+    ctx.fillStyle = "#e9f6ff";
+    ctx.fillText(value, cx, y + 26);
+  });
+}
+
+export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendPanel, renderPickupLegendPanel, options = {}) {
   const ui = GAME_CONFIG.ui.pause;
 
   if (!gameState.paused || gameState.player.perkModalOpen || gameState.gameOver || gameState.titleScreen) {
@@ -334,6 +378,11 @@ export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendP
     return;
   }
 
+  if (gameState.pauseView === "debug" && options.isDebugMode) {
+    renderPauseDebug(ctx, canvas, gameState, usingGamepad, options.debugSystem);
+    return;
+  }
+
   gameState.pauseSettingsSliderRect = null;
   gameState.pauseSettingsVolumeRect = null;
   gameState.pauseSettingsBackRect = null;
@@ -346,21 +395,86 @@ export function renderPauseOverlay(ctx, canvas, gameState, renderControlsLegendP
   ctx.fillStyle = "rgba(212, 233, 255, 0.9)";
   ctx.fillText(usingGamepad ? "Press START to resume" : "Press SPACE to resume", canvas.width * 0.5, 146);
 
+  const row = gameState.pauseMainRow ?? 0;
   const button = { x: canvas.width * 0.5 - 110, y: 168, width: 220, height: 36 };
   gameState.pauseSettingsButtonRect = button;
-  ctx.fillStyle = "rgba(33, 67, 84, 0.9)";
-  ctx.fillRect(button.x, button.y, button.width, button.height);
-  ctx.strokeStyle = usingGamepad ? "rgba(255, 226, 166, 0.95)" : "rgba(150, 228, 255, 0.6)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(button.x, button.y, button.width, button.height);
-  ctx.fillStyle = "#effcff";
-  ctx.font = "bold 16px monospace";
-  ctx.textBaseline = "middle";
-  ctx.fillText(usingGamepad ? "Settings (A)" : "Settings (Enter)", canvas.width * 0.5, button.y + button.height * 0.5 + 1);
-  ctx.textBaseline = "alphabetic";
+  drawMenuButton(ctx, button, usingGamepad ? "Settings (A)" : "Settings (Enter)", {
+    focused: row === 0,
+    usingGamepad,
+  });
+
+  let nextY = button.y + button.height + 10;
+  if (options.isDebugMode) {
+    const debugButton = { x: button.x, y: nextY, width: button.width, height: 36 };
+    gameState.pauseDebugButtonRect = debugButton;
+    drawMenuButton(ctx, debugButton, usingGamepad ? "Debug tools (A)" : "Debug tools (Enter)", {
+      focused: row === 1,
+      usingGamepad,
+    });
+    nextY += 46;
+  } else {
+    gameState.pauseDebugButtonRect = null;
+  }
+
+  drawRunStats(ctx, canvas, gameState, nextY + 26);
 
   renderControlsLegendPanel(ui.controlsPanelX, canvas.height - ui.panelBottomOffset, ui.panelWidth);
   renderPickupLegendPanel(canvas.width - ui.pickupPanelRightOffset, canvas.height - ui.panelBottomOffset, ui.panelWidth);
+  ctx.textAlign = "start";
+}
+
+// Two-column list of debug actions; the last focus index is the full-width Back button.
+function renderPauseDebug(ctx, canvas, gameState, usingGamepad, debugSystem) {
+  gameState.pauseSettingsButtonRect = null;
+  gameState.pauseDebugButtonRect = null;
+  const cx = canvas.width * 0.5;
+  const focus = gameState.pauseDebugIndex ?? 0;
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffdca7";
+  ctx.font = "bold 40px monospace";
+  ctx.fillText("DEBUG TOOLS", cx, 90);
+
+  const buttonWidth = 300;
+  const buttonHeight = 36;
+  const gap = 10;
+  const startY = 124;
+  const rects = [];
+  DEBUG_MENU_ITEMS.forEach((item, i) => {
+    const col = i % 2;
+    const rowIndex = Math.floor(i / 2);
+    const rect = {
+      x: cx - buttonWidth - gap * 0.5 + col * (buttonWidth + gap),
+      y: startY + rowIndex * (buttonHeight + gap),
+      width: buttonWidth,
+      height: buttonHeight,
+    };
+    rects.push(rect);
+    drawMenuButton(ctx, rect, item.label, {
+      focused: focus === i,
+      usingGamepad,
+      checked: item.kind === "toggle" ? !!debugSystem?.isToggled(item.id) : null,
+      fontSize: 14,
+    });
+  });
+
+  const rows = Math.ceil(DEBUG_MENU_ITEMS.length / 2);
+  const back = { x: cx - 110, y: startY + rows * (buttonHeight + gap) + 14, width: 220, height: 36 };
+  rects.push(back);
+  drawMenuButton(ctx, back, usingGamepad ? "Back (B)" : "Back (Enter)", { focused: focus === DEBUG_MENU_ITEMS.length, usingGamepad });
+  gameState.pauseDebugRects = rects;
+
+  ctx.font = "13px monospace";
+  ctx.fillStyle = "rgba(212, 233, 255, 0.8)";
+  ctx.textAlign = "center";
+  const engine = gameState.systems.perkEngine?.getDebugSnapshot?.();
+  if (engine) {
+    ctx.fillText(
+      `Perks: ${gameState.player.ownedPerks.length} | Hooks: ${engine.invocationsThisFrame} | Active: ${engine.activePerkCount} | Last: ${engine.lastInvocation}`,
+      cx,
+      back.y + back.height + 28
+    );
+  }
   ctx.textAlign = "start";
 }
 

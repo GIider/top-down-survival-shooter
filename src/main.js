@@ -1,19 +1,19 @@
 import { playSfx, SFX_VOLUME_STEPS, sfx } from "./audio/sfx.js";
-import { CANVAS, GAME_CONFIG } from "./core/constants.js";
+import { GAME_CONFIG } from "./core/constants.js";
 import { createFpsTracker } from "./core/fpsTracker.js";
 import { createGameServices } from "./core/gameServices.js";
-import { createHud } from "./core/hud.js";
 import { createInput } from "./core/input.js";
 import { createLoop } from "./core/loop.js";
 import { loadPerkProgress, savePerkProgress } from "./core/perkProgress.js";
 import { createRenderer } from "./core/renderer.js";
+import { createView } from "./core/view.js";
 import { loadRunHistory, saveRunHistory } from "./core/runHistory.js";
 import { AUTO_AIM_SNAP_MAX, loadSettings, saveSettings } from "./core/settings.js";
 import { createAutoAim } from "./systems/autoAim.js";
 import { createInitialState } from "./core/state.js";
 import { updatePlayerMovement } from "./entities/player.js";
 import { updateCollisionSystem } from "./systems/collisionSystem.js";
-import { createDebugSystem } from "./systems/debugSystem.js";
+import { createDebugSystem, DEBUG_MENU_ITEMS } from "./systems/debugSystem.js";
 import { updateEnemies, updateEnemySpawning } from "./systems/enemySystem.js";
 import { updateEffects, updateFloatingTexts, updateSlashEffects } from "./systems/effectSystem.js";
 import { updateIndicators } from "./systems/indicatorSystem.js";
@@ -42,8 +42,7 @@ import {
 import { createWeaponSystem } from "./systems/weaponSystem.js";
 
 const canvas = document.getElementById("game");
-canvas.width = CANVAS.width;
-canvas.height = CANVAS.height;
+const view = createView(canvas);
 
 const isDebugMode = new URLSearchParams(window.location.search).get("debug") === "1";
 const GAME_OVER_ANIMATION_TIME = GAME_CONFIG.player.gameOverAnimationTime;
@@ -58,11 +57,11 @@ const autoAim = createAutoAim();
 gameState.appVersion = APP_VERSION;
 const perkEngine = createPerkEngine();
 gameState.systems.perkEngine = perkEngine;
-const input = createInput(canvas);
+const input = createInput(canvas, view);
 let weaponSystem = createWeaponSystem(gameState.player);
 gameState.systems.weaponSystem = weaponSystem;
 gameState.systems.world = createWorldSystem(Math.floor(Math.random() * 2147483647));
-const services = createGameServices({ gameState, canvas, documentRef: document, isDebugMode });
+const services = createGameServices({ gameState, canvas: view, documentRef: document, isDebugMode });
 services.setWeaponSystem(weaponSystem);
 services.setPerkEngine(perkEngine);
 services.setWorld(gameState.systems.world);
@@ -70,10 +69,9 @@ services.setWorld(gameState.systems.world);
 let blinkCanceledDuringHold = false;
 let shoutCanceledDuringHold = false;
 
-const renderer = createRenderer(canvas, gameState);
-const fpsTracker = createFpsTracker();
-const hud = createHud(document, { isDebugMode });
 const debugSystem = createDebugSystem(services);
+const renderer = createRenderer(canvas, gameState, view, { debugSystem });
+const fpsTracker = createFpsTracker();
 
 function applyFreshState(freshState) {
   freshState.runHistory = [...gameState.runHistory];
@@ -353,12 +351,71 @@ function pointInRect(rect, x, y, pad = 0) {
   return !!rect && x >= rect.x - pad && x <= rect.x + rect.width + pad && y >= rect.y - pad && y <= rect.y + rect.height + pad;
 }
 
+function handlePauseDebug({ nav, keyNav, activate, clicked, x, y }) {
+  const itemCount = DEBUG_MENU_ITEMS.length;
+  const backIndex = itemCount;
+  let index = gameState.pauseDebugIndex ?? 0;
+
+  const dx = nav.dx || keyNav.dx;
+  const dy = nav.dy || keyNav.dy;
+  if (index === backIndex) {
+    if (dy < 0) {
+      index = itemCount - 2;
+    }
+  } else if (dx !== 0) {
+    index = Math.max(0, Math.min(itemCount - 1, index + dx));
+  } else if (dy !== 0) {
+    index += dy * 2;
+    if (index >= itemCount) {
+      index = backIndex;
+    }
+    index = Math.max(0, index);
+  }
+  gameState.pauseDebugIndex = index;
+
+  let target = -1;
+  if (clicked) {
+    const rects = gameState.pauseDebugRects || [];
+    target = rects.findIndex((rect) => pointInRect(rect, x, y));
+  }
+  if (target < 0 && activate) {
+    target = index;
+  }
+  if (target < 0) {
+    return;
+  }
+
+  gameState.pauseDebugIndex = target;
+  if (target === backIndex) {
+    gameState.pauseView = "main";
+    return;
+  }
+  playSfx("uiClick");
+  debugSystem.activate(DEBUG_MENU_ITEMS[target].id);
+}
+
 function handlePauseMenu({ nav, keyNav, confirm, clicked }) {
   const activate = confirm;
   const { x, y } = input.pointer;
 
+  if (gameState.pauseView === "debug" && isDebugMode) {
+    handlePauseDebug({ nav, keyNav, activate, clicked, x, y });
+    return;
+  }
+
   if (gameState.pauseView !== "settings") {
-    if (activate || (clicked && pointInRect(gameState.pauseSettingsButtonRect, x, y))) {
+    const maxRow = isDebugMode ? 1 : 0;
+    const rowDelta = nav.dy || keyNav.dy;
+    if (rowDelta !== 0) {
+      gameState.pauseMainRow = Math.max(0, Math.min(maxRow, (gameState.pauseMainRow ?? 0) + rowDelta));
+    }
+
+    const clickedSettings = clicked && pointInRect(gameState.pauseSettingsButtonRect, x, y);
+    const clickedDebug = clicked && pointInRect(gameState.pauseDebugButtonRect, x, y);
+    if (clickedDebug || (activate && gameState.pauseMainRow === 1 && isDebugMode)) {
+      gameState.pauseView = "debug";
+      gameState.pauseDebugIndex = 0;
+    } else if (clickedSettings || activate) {
       gameState.pauseView = "settings";
       gameState.pauseSettingsRow = 0;
     }
@@ -502,6 +559,7 @@ function update(dt) {
     perkEngine.resetFrameDebug();
   }
   fpsTracker.update(dt);
+  gameState.fps = fpsTracker.getValue();
 
   if (gameState.player.perkRerollAnimationTimer > 0) {
     gameState.player.perkRerollAnimationTimer = Math.max(0, gameState.player.perkRerollAnimationTimer - dt);
@@ -538,7 +596,7 @@ function update(dt) {
     input.consumePausePress() ||
     (menuBack &&
       gameState.paused &&
-      gameState.pauseView !== "settings" &&
+      gameState.pauseView === "main" &&
       !gameState.titleScreen &&
       !gameState.gameOver &&
       !gameState.player.perkModalOpen);
@@ -607,7 +665,7 @@ function update(dt) {
     return;
   }
 
-  if (gameState.paused && gameState.pauseView === "settings" && menuBack) {
+  if (gameState.paused && (gameState.pauseView === "settings" || gameState.pauseView === "debug") && menuBack) {
     gameState.pauseView = "main";
   } else if (gameState.paused && !gameState.player.perkModalOpen && !pausePressed) {
     handlePauseMenu({ nav: menuNav, keyNav, confirm: menuConfirm || enterPressed, clicked });
@@ -618,6 +676,7 @@ function update(dt) {
   } else if (!gameState.player.perkModalOpen && pausePressed) {
     gameState.paused = !gameState.paused;
     gameState.pauseView = "main";
+    gameState.pauseMainRow = 0;
     if (gameState.paused) {
       gameState.screenFx.shake = 0;
     }
@@ -670,8 +729,8 @@ function update(dt) {
   gameState.autoAimTarget = gamepadAim?.target ?? null;
   const aimRadius = GAME_CONFIG.gamepad.aimRadius;
   const worldPointer = {
-    x: gamepadAim ? gameState.player.x + gamepadAim.x * aimRadius : gameState.player.x + (input.pointer.x - canvas.width * 0.5),
-    y: gamepadAim ? gameState.player.y + gamepadAim.y * aimRadius : gameState.player.y + (input.pointer.y - canvas.height * 0.5),
+    x: gamepadAim ? gameState.player.x + gamepadAim.x * aimRadius : gameState.player.x + (input.pointer.x - view.width * 0.5),
+    y: gamepadAim ? gameState.player.y + gamepadAim.y * aimRadius : gameState.player.y + (input.pointer.y - view.height * 0.5),
     down: input.pointer.down,
   };
   gameState.player.aim.x = worldPointer.x;
@@ -696,13 +755,10 @@ function update(dt) {
   const fireballPressed = input.consumeFireballPress();
   const releasedClick = input.consumePointerRelease();
   const weaponSlot = input.consumeWeaponSlotPress();
-  const weaponCycle = input.consumeWeaponCycle();
   const cancelPressed = input.consumeCancelPress();
 
   if (weaponSlot === 1 || weaponSlot === 2 || weaponSlot === 3 || weaponSlot === 4) {
     weaponSystem.switchWeapon(weaponSlot);
-  } else if (weaponCycle !== 0) {
-    weaponSystem.switchWeapon(((weaponSystem.selectedSlot - 1 + weaponCycle + 4) % 4) + 1);
   }
 
   if (holdingBlink && (reloadPressed || clicked || cancelPressed)) {
@@ -803,6 +859,5 @@ createLoop(
   update,
   () => {
     renderer.render();
-    hud.update(services, fpsTracker.getValue());
   }
 );

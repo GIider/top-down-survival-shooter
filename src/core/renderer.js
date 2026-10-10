@@ -1,5 +1,6 @@
 import { CANVAS } from "./constants.js";
 import { renderControlsLegendPanel, renderPickupLegendPanel, renderTitleHistoryPanel } from "./render/panels.js";
+import { renderHud } from "./render/hud.js";
 import { renderPauseOverlay, renderPerkLibraryOverlay, renderTitleScreen } from "./render/titleOverlays.js";
 import { PERK_HOOKS } from "../systems/perks/contracts.js";
 import { getVisibleObstacles } from "../systems/worldSystem.js";
@@ -108,8 +109,10 @@ function drawBorderProgress(ctx, x, y, width, height, progress, color, lineWidth
   ctx.stroke();
 }
 
-export function createRenderer(canvas, gameState) {
-  const ctx = canvas.getContext("2d");
+export function createRenderer(canvasElement, gameState, view, { debugSystem = null } = {}) {
+  const ctx = canvasElement.getContext("2d");
+  // Logical size (view) is what all layout code reads as canvas.width/height.
+  const canvas = view;
 
   const GAME_OVER_ANIMATION_TIME = 1.1;
 
@@ -224,7 +227,10 @@ export function createRenderer(canvas, gameState) {
   }
 
   function drawPauseOverlay() {
-    renderPauseOverlay(ctx, canvas, gameState, drawControlsLegendPanel, drawPickupLegendPanel);
+    renderPauseOverlay(ctx, canvas, gameState, drawControlsLegendPanel, drawPickupLegendPanel, {
+      isDebugMode: IS_DEBUG_MODE,
+      debugSystem,
+    });
   }
 
   function drawTitleScreen() {
@@ -1230,46 +1236,6 @@ export function createRenderer(canvas, gameState) {
     ctx.textBaseline = "alphabetic";
   }
 
-  function renderPerkPointCounter() {
-    const points = gameState.player.perkPoints;
-    if (points <= 0 || gameState.player.perkModalOpen || gameState.gameOver) {
-      return;
-    }
-
-    const baseX = canvas.width - 28;
-    const baseY = canvas.height - 24;
-    const t = gameState.time;
-    const bobY = Math.sin(t * 5.2) * 5;
-    const bobX = Math.sin(t * 3.8) * 2;
-    const pulse = 0.92 + (Math.sin(t * 6.8) * 0.5 + 0.5) * 0.16;
-
-    ctx.save();
-    ctx.translate(baseX + bobX, baseY + bobY);
-    ctx.scale(pulse, pulse);
-
-    const label = `Perk Points: ${points}`;
-    ctx.font = "bold 18px monospace";
-    const textWidth = ctx.measureText(label).width;
-    const paddingX = 14;
-    const width = textWidth + paddingX * 2;
-    const height = 34;
-
-    ctx.fillStyle = "rgba(18, 30, 44, 0.82)";
-    ctx.fillRect(-width, -height, width, height);
-    ctx.strokeStyle = "rgba(126, 244, 210, 0.9)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-width, -height, width, height);
-
-    ctx.fillStyle = "#9fffe0";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, -paddingX, -height * 0.5 + 1);
-
-    ctx.restore();
-    ctx.textAlign = "start";
-    ctx.textBaseline = "alphabetic";
-  }
-
   function renderGameOverOverlay() {
     if (!gameState.gameOver) {
       return;
@@ -1318,6 +1284,8 @@ export function createRenderer(canvas, gameState) {
   return {
     ctx,
     render() {
+      const pixelScale = view.scale * view.dpr;
+      ctx.setTransform(pixelScale, 0, 0, pixelScale, 0, 0);
       renderBackground();
 
       const camera = getCameraOffset();
@@ -1352,7 +1320,7 @@ export function createRenderer(canvas, gameState) {
         ctx.fillStyle = `rgba(255, 120, 120, ${Math.min(0.24, gameState.screenFx.damageFlash * 0.26)})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-      renderPerkPointCounter();
+      renderHud(ctx, view, gameState, gameState.systems.weaponSystem, { isDebugMode: IS_DEBUG_MODE });
       drawPauseOverlay();
       renderPerkModal();
       renderGameOverOverlay();

@@ -59,6 +59,19 @@ runTest("menu navigation repeats only after the delay", () => {
   assert.equal(mapper.update(right, 0.4).nav.dx, 1);
 });
 
+runTest("d-pad directions report as separate press edges for direct weapon slots", () => {
+  const mapper = createGamepadMapper();
+  const directions = ["dpadUp", "dpadRight", "dpadDown", "dpadLeft"];
+  for (const name of directions) {
+    mapper.update(snapshot(), 0.016);
+    const state = mapper.update(snapshot({ pressed: [GAMEPAD_BUTTONS[name]] }), 0.016);
+    assert.equal(state.pressed[name], true);
+    for (const other of directions.filter((d) => d !== name)) {
+      assert.equal(state.pressed[other], false);
+    }
+  }
+});
+
 runTest("disconnect resets mapper state", () => {
   const mapper = createGamepadMapper();
   mapper.update(snapshot({ pressed: [GAMEPAD_BUTTONS.rt] }), 0.016);

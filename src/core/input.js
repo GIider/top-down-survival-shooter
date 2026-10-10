@@ -1,7 +1,7 @@
 import { createGamepadMapper } from "./gamepadMapper.js";
 import { GAME_CONFIG } from "../config/gameConfig.js";
 
-export function createInput(canvas) {
+export function createInput(canvas, view = null) {
   const keys = new Set();
   const gamepadMapper = createGamepadMapper(GAME_CONFIG.gamepad);
   let activeDevice = "keyboard";
@@ -12,9 +12,9 @@ export function createInput(canvas) {
   let gamepadBlinkHeld = false;
   let gamepadShoutHeld = false;
   let gamepadWasConnected = false;
+  let padSample = [0, 0, 0, 0];
   let gamepadDisconnected = false;
   let cancelPressed = false;
-  let weaponCycle = 0;
   let menuNav = { dx: 0, dy: 0 };
   let menuConfirm = false;
   let menuBack = false;
@@ -44,8 +44,9 @@ export function createInput(canvas) {
     const rect = canvas.getBoundingClientRect();
     const width = Math.max(1, rect.width);
     const height = Math.max(1, rect.height);
-    const scaleX = canvas.width / width;
-    const scaleY = canvas.height / height;
+    // With a fullscreen view the logical size is view.width/height (canvas.width is device pixels).
+    const scaleX = (view ? view.width : canvas.width) / width;
+    const scaleY = (view ? view.height : canvas.height) / height;
     pointer.x = (event.clientX - rect.left) * scaleX;
     pointer.y = (event.clientY - rect.top) * scaleY;
   }
@@ -190,7 +191,19 @@ export function createInput(canvas) {
     }
     gamepadWasConnected = true;
 
-    if (state.anyInput) {
+    // Only take over from mouse/keyboard on *new* pad activity (a button edge or a stick that
+    // actually moved). A resting stick with drift or a half-pressed trigger reports constant
+    // input, which would otherwise yank control back to the pad every frame and freeze the mouse aim.
+    const sample = [
+      state.move.x,
+      state.move.y,
+      state.aim ? state.aim.x * state.aim.magnitude : 0,
+      state.aim ? state.aim.y * state.aim.magnitude : 0,
+    ];
+    const stickMoved = sample.some((value, i) => Math.abs(value - padSample[i]) > 0.12);
+    padSample = sample;
+    const buttonEdge = Object.values(state.pressed).some(Boolean);
+    if (state.anyInput && (activeDevice === "gamepad" || stickMoved || buttonEdge)) {
       activeDevice = "gamepad";
     }
     if (activeDevice !== "gamepad") {
@@ -232,10 +245,15 @@ export function createInput(canvas) {
     if (state.pressed.fireball) {
       fireballPressed = true;
     }
-    if (state.pressed.weaponPrev) {
-      weaponCycle = -1;
-    } else if (state.pressed.weaponNext) {
-      weaponCycle = 1;
+    // D-pad picks weapon slots directly: Up=1 Sword, Right=2 Gun, Down=3 Bow, Left=4 Flail.
+    if (state.pressed.dpadUp) {
+      weaponSlotPressed = 1;
+    } else if (state.pressed.dpadRight) {
+      weaponSlotPressed = 2;
+    } else if (state.pressed.dpadDown) {
+      weaponSlotPressed = 3;
+    } else if (state.pressed.dpadLeft) {
+      weaponSlotPressed = 4;
     }
 
     if (state.pressed.fire) {
@@ -305,11 +323,6 @@ export function createInput(canvas) {
     consumeCancelPress() {
       const value = cancelPressed;
       cancelPressed = false;
-      return value;
-    },
-    consumeWeaponCycle() {
-      const value = weaponCycle;
-      weaponCycle = 0;
       return value;
     },
     consumeMenuNav() {

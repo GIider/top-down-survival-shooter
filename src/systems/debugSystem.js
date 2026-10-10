@@ -55,54 +55,25 @@ function spawnDebugPickups(services) {
   }
 }
 
+// Entries shown on the pause-menu debug page (?debug=1). "toggle" items keep state in the debug system.
+export const DEBUG_MENU_ITEMS = [
+  { id: "director", label: "Director auto spawning", kind: "toggle" },
+  { id: "noCooldowns", label: "No Cooldowns", kind: "toggle" },
+  { id: "chaser", label: "Spawn Chaser", kind: "enemy" },
+  { id: "slime", label: "Spawn Slime", kind: "enemy" },
+  { id: "shooter", label: "Spawn Shooter", kind: "enemy" },
+  { id: "assaultShooter", label: "Spawn Assault Shooter", kind: "enemy" },
+  { id: "shotgunShooter", label: "Spawn Shotgun Shooter", kind: "enemy" },
+  { id: "bomber", label: "Spawn Bomber", kind: "enemy" },
+  { id: "mortar", label: "Spawn Mortar", kind: "enemy" },
+  { id: "flyingBomber", label: "Spawn Flying Bomber", kind: "enemy" },
+  { id: "levelUp", label: "Level Up Player", kind: "action" },
+  { id: "pickups", label: "Spawn Pickups", kind: "action" },
+];
+
 export function createDebugSystem(services) {
-  const debugControls = services.document.getElementById("debug-controls");
-  const debugDirectorToggle = services.document.getElementById("debug-director-toggle");
-  const debugNoCooldownsToggle = services.document.getElementById("debug-no-cooldowns-toggle");
-  const debugLevelUpButton = services.document.getElementById("debug-level-up");
-  const debugSpawnPickupsButton = services.document.getElementById("debug-spawn-pickups");
   let debugDirectorEnabled = false;
   let debugNoCooldownsEnabled = false;
-
-  if (services.isDebugMode && debugControls) {
-    debugControls.hidden = false;
-
-    if (debugDirectorToggle) {
-      debugDirectorToggle.checked = false;
-      debugDirectorToggle.addEventListener("change", () => {
-        debugDirectorEnabled = debugDirectorToggle.checked;
-      });
-    }
-
-    if (debugNoCooldownsToggle) {
-      debugNoCooldownsToggle.checked = false;
-      debugNoCooldownsToggle.addEventListener("change", () => {
-        debugNoCooldownsEnabled = debugNoCooldownsToggle.checked;
-      });
-    }
-
-    const buttons = debugControls.querySelectorAll("button[data-enemy-type]");
-    buttons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const type = button.getAttribute("data-enemy-type");
-        if (type) {
-          spawnDebugEnemy(services, type);
-        }
-      });
-    });
-
-    if (debugLevelUpButton) {
-      debugLevelUpButton.addEventListener("click", () => {
-        applyDebugLevelUp(services);
-      });
-    }
-
-    if (debugSpawnPickupsButton) {
-      debugSpawnPickupsButton.addEventListener("click", () => {
-        spawnDebugPickups(services);
-      });
-    }
-  }
 
   return {
     seedStarterEnemies() {
@@ -117,6 +88,26 @@ export function createDebugSystem(services) {
     },
     isNoCooldownsEnabled() {
       return debugNoCooldownsEnabled;
+    },
+    isToggled(id) {
+      return id === "director" ? debugDirectorEnabled : id === "noCooldowns" ? debugNoCooldownsEnabled : false;
+    },
+    activate(id) {
+      const item = DEBUG_MENU_ITEMS.find((entry) => entry.id === id);
+      if (!item) {
+        return;
+      }
+      if (id === "director") {
+        debugDirectorEnabled = !debugDirectorEnabled;
+      } else if (id === "noCooldowns") {
+        debugNoCooldownsEnabled = !debugNoCooldownsEnabled;
+      } else if (id === "levelUp") {
+        applyDebugLevelUp(services);
+      } else if (id === "pickups") {
+        spawnDebugPickups(services);
+      } else if (item.kind === "enemy") {
+        spawnDebugEnemy(services, id);
+      }
     },
   };
 }

@@ -11,7 +11,6 @@ import { computeFlyingBomberPath, updateFlyingBomberBehavior } from "./enemies/f
 
 const SPAWN_CONFIG = GAME_CONFIG.enemies.spawn;
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
-const RECYCLE_DISTANCE = Math.max(CANVAS.width, CANVAS.height) * SPAWN_CONFIG.recycleDistanceMultiplier;
 const OFFSCREEN_RESPAWN_AFTER = SPAWN_CONFIG.offscreenRespawnAfter;
 const ENEMY_SPAWN_WEIGHTS = SPAWN_CONFIG.weights;
 
@@ -261,7 +260,7 @@ export function updateEnemies(gameState, dt) {
 
     const distanceToPlayer = Math.hypot(player.x - enemy.x, player.y - enemy.y);
 
-    if (!enemy.isRespawning && (distanceToPlayer > RECYCLE_DISTANCE || enemy.offscreenTime >= OFFSCREEN_RESPAWN_AFTER)) {
+    if (!enemy.isRespawning && (distanceToPlayer > Math.max(CANVAS.width, CANVAS.height) * SPAWN_CONFIG.recycleDistanceMultiplier || enemy.offscreenTime >= OFFSCREEN_RESPAWN_AFTER)) {
       enemy.isRespawning = true;
       enemy.respawnTimer = enemy.offscreenTime >= OFFSCREEN_RESPAWN_AFTER ? aggressiveRespawnDelay() : randomRespawnDelay();
     }

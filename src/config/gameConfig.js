@@ -32,10 +32,24 @@ export const GAME_CONFIG = {
         ["L Stick", "Move"],
         ["R Stick", "Aim"],
         ["RT", "Attack"],
-        ["D-Pad L / R", "Switch weapon"],
+        ["D-Pad ▲ ► ▼ ◄", "Sword / Gun / Bow / Flail"],
         ["LT / RB / Y", "Blink / Shout / Fireball"],
         ["X", "Reload"],
         ["Start", "Pause / Resume"],
+      ],
+    },
+    hud: {
+      margin: 16,
+      weapons: [
+        { slot: 1, icon: "⚔️", name: "Sword", key: "1", dpad: "up", glyph: "▲" },
+        { slot: 2, icon: "🔫", name: "Gun", key: "2", dpad: "right", glyph: "►" },
+        { slot: 3, icon: "🏹", name: "Bow", key: "3", dpad: "down", glyph: "▼" },
+        { slot: 4, icon: "⛓️", name: "Flail", key: "4", dpad: "left", glyph: "◄" },
+      ],
+      skills: [
+        { id: "blink", icon: "💨", name: "Blink", key: "Q", padKey: "LT" },
+        { id: "shout", icon: "🗣️", name: "Shout", key: "E", padKey: "RB" },
+        { id: "fireball", icon: "🔥", name: "Fireball", key: "F", padKey: "Y" },
       ],
     },
     pause: {
