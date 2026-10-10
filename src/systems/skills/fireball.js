@@ -2,6 +2,7 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { getPlayerDamageMultiplier } from "../../entities/player.js";
 import { igniteTreesAt, isProjectileBlockedByMountain } from "../worldSystem.js";
 import { PERK_HOOKS } from "../perks/contracts.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 
@@ -51,6 +52,7 @@ export function tryFireball(services, worldPointer) {
     perkEngine.runTransformHook(PERK_HOOKS.onFireballCreate, { gameState, player, fireball }, player);
   }
   gameState.fireballs.push(fireball);
+  playSfx("fireballCast");
   gameState.effects.push({
     x: player.x,
     y: player.y,

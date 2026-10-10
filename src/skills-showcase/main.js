@@ -10,6 +10,10 @@ import { tryShout, updateShoutPreview, updateShoutWaves } from "../systems/skill
 import { tryFireball, updateFireballs, updateLingeringZones } from "../systems/skills/fireball.js";
 import { updateChaserSlimeBehavior } from "../systems/enemies/chaserSlime.js";
 import { createEnemy } from "../entities/enemy.js";
+import { sfx } from "../audio/sfx.js";
+
+// Showcases reuse game systems for demos; keep them silent.
+sfx.silence(true);
 
 const DT = 1 / 60;
 

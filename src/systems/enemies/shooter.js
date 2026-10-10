@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { createProjectile } from "../../entities/projectile.js";
 import { moveEnemyWithTerrain, normalize, pickShooterAimPoint } from "./common.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const ENEMY_CONFIG = GAME_CONFIG.enemies.archetypes;
 
@@ -19,6 +20,7 @@ export function updateShooterBehavior(gameState, enemy, player, world, dt, speed
     enemy.fireTimer = 0;
     const aimPoint = pickShooterAimPoint(enemy.x, enemy.y, player, playerVelocity, ENEMY_CONFIG.shooter.projectile.speed);
     const fireDir = normalize(aimPoint.x - enemy.x, aimPoint.y - enemy.y);
+    playSfx("enemyShoot");
     gameState.projectiles.push(
       createProjectile({
         position: { x: enemy.x, y: enemy.y },

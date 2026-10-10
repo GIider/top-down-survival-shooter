@@ -4,6 +4,7 @@ import { createEnemy } from "../entities/enemy.js";
 import { maybeSpawnPickupOnEnemyDeath } from "./pickups/index.js";
 import { getTreeEffectsAt, igniteTreesAt, resolvePositionAgainstMountains } from "./worldSystem.js";
 import { createDamageContext, PERK_HOOKS } from "./perks/contracts.js";
+import { playSfx } from "../audio/sfx.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
@@ -202,6 +203,7 @@ function computeDamageWithPerks(gameState, player, enemy, baseDamage, damageSour
 }
 
 function emitEnemyHitWithPerks(gameState, player, enemy, damage, damageSource) {
+  playSfx("enemyHit", { pitch: 1 + Math.min(0.4, damage * 0.004) });
   const perkEngine = gameState.systems.perkEngine;
   if (!perkEngine) {
     return;
@@ -268,6 +270,7 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
       );
       gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + deathEffects.screenShake);
       gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + deathEffects.screenFlash);
+      playSfx("playerHurt");
     }
 
     gameState.effects.push(
@@ -283,6 +286,7 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
     );
   }
 
+  playSfx(enemy.type === "bomber" ? "explosion" : "enemyDeath");
   gameState.effects.push({ x: enemy.x, y: enemy.y, radius: enemy.radius, elapsed: 0, duration: 0.35 });
   spawnFloatingText(gameState, `XP +${enemy.xp}`, enemy.x, enemy.y - enemy.radius - 16, "149,255,206", 20, "xp");
   gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 2.1);
@@ -308,6 +312,7 @@ function detonateFireball(gameState, fireball, playerProjectileIndex = null) {
       color: effect.color,
     }))
   );
+  playSfx("fireballDetonate");
   gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + detonationConfig.screenShake);
   gameState.screenFx.actionFlash = Math.min(1, gameState.screenFx.actionFlash + detonationConfig.screenFlash);
   gameState.screenFx.hitStop = Math.max(gameState.screenFx.hitStop || 0, detonationConfig.hitStop);
@@ -910,6 +915,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         );
         gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 1.8);
         gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + 0.16);
+        playSfx("playerHurt");
         gameState.projectiles.splice(p, 1);
       }
     }
@@ -1039,6 +1045,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     );
     gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 0.9);
     gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + 0.06);
+    playSfx("playerHurt");
   }
 
   if (accumulatedTreeFireDamage > 0) {

@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { createProjectile } from "../../entities/projectile.js";
 import { moveEnemyWithTerrain, normalize, pickShooterAimPoint } from "./common.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const ENEMY_CONFIG = GAME_CONFIG.enemies.archetypes;
 
@@ -29,6 +30,7 @@ export function updateShotgunShooterBehavior(gameState, enemy, player, world, dt
     const angle = centerAngle + spread;
     const speed = enemy.projectileSpeed * (0.9 + Math.random() * 0.2);
 
+    playSfx("enemyShoot");
     gameState.projectiles.push(
       createProjectile({
         position: { x: enemy.x, y: enemy.y },

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="app-version" content="__APP_VERSION__" />
+  <title>Sound Lab - Top-Down Survival Shooter</title>
+  <link rel="stylesheet" href="./static-pages.css" />
+  <style>
+    .lab { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 14px; align-items: start; }
+    @media (max-width: 820px) { .lab { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+    .panel h2 { margin: 0 0 10px; font-size: 1.02rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .toolbar label { color: var(--muted); font-size: 0.85rem; display: inline-flex; gap: 6px; align-items: center; }
+    button.btn {
+      background: rgba(12, 18, 25, 0.95); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 11px; font: inherit; font-size: 0.86rem; cursor: pointer;
+    }
+    button.btn:hover { border-color: var(--accent); color: var(--accent); }
+    button.btn.primary { border-color: var(--accent); color: var(--accent); background: rgba(136, 229, 185, 0.1); }
+    .group-title { margin: 12px 0 6px; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .group-title:first-child { margin-top: 0; }
+    .snd-item {
+      display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+      border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 6px 8px; margin-bottom: 5px;
+      background: rgba(10, 15, 20, 0.6); color: var(--text); font: inherit; font-size: 0.88rem; cursor: pointer;
+    }
+    .snd-item:hover { border-color: var(--accent); }
+    .snd-item[aria-current="true"] { border-color: var(--accent); background: rgba(136, 229, 185, 0.1); }
+    .snd-item .name { flex: 1; min-width: 0; }
+    .snd-item .id { display: block; color: var(--muted); font-size: 0.72rem; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .snd-item .dot { width: 8px; height: 8px; border-radius: 50%; background: #ffd37a; visibility: hidden; }
+    .snd-item.modified .dot { visibility: visible; }
+    .snd-item .play { border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--accent); }
+    .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
+    .param { display: grid; grid-template-columns: 110px 1fr 70px; gap: 8px; align-items: center; font-size: 0.84rem; color: var(--muted); }
+    .param input[type="range"] { width: 100%; accent-color: #88e5b9; }
+    .param input[type="number"], .param select, .meta-row input, textarea {
+      background: rgba(8, 12, 17, 0.9); color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 0.82rem; min-width: 0;
+    }
+    .param.changed { color: #ffd37a; }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; color: var(--muted); font-size: 0.85rem; }
+    .meta-row input { width: 80px; }
+    #wave { width: 100%; height: 90px; background: rgba(8, 12, 17, 0.9); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+    textarea { width: 100%; min-height: 170px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem; resize: vertical; }
+    .hint a { color: var(--accent); }
+    .hint code { color: var(--text); }
+    .hint { color: var(--muted); font-size: 0.82rem; line-height: 1.4; margin: 0 0 10px; }
+    .status { color: var(--accent); font-size: 0.84rem; min-height: 1.2em; }
+    .stack { display: grid; gap: 14px; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    __STATIC_SITE_HEADER__
+
+    <div class="lab">
+      <aside class="panel" aria-label="Sound list">
+        <div class="toolbar">
+          <label>Volume <input id="master-volume" type="range" min="0" max="1" step="0.05" /></label>
+        </div>
+        <div id="sound-list"></div>
+      </aside>
+
+      <div class="stack">
+        <section class="panel" aria-label="Sound editor">
+          <h2 id="editor-title">Sound</h2>
+          <div class="toolbar">
+            <button class="btn primary" id="btn-play" type="button">Play</button>
+            <label><input id="auto-play" type="checkbox" checked /> Play on change</label>
+            <button class="btn" id="btn-mutate" type="button">Mutate</button>
+            <button class="btn" id="btn-reset" type="button">Reset to repo</button>
+            <button class="btn" id="btn-copy-array" type="button">Copy ZzFX array</button>
+            <button class="btn" id="btn-wav" type="button">Download WAV</button>
+          </div>
+          <div class="meta-row">
+            <span id="editor-id"></span>
+            <label>Cooldown (ms) <input id="cooldown" type="number" min="0" max="2000" step="5" /></label>
+            <span id="duration"></span>
+          </div>
+          <canvas id="wave" width="900" height="90"></canvas>
+          <div id="param-grid" class="params"></div>
+        </section>
+
+        <section class="panel" aria-label="Export and import">
+          <h2>Export / import</h2>
+          <p class="hint">
+            Tweaks are saved in this browser and are used by the game when you open
+            <a href="./game.html?sfxLab=1">game.html?sfxLab=1</a>. To bring them back into the repo,
+            copy or download the export below and replace <code>src/audio/soundCatalog.js</code>,
+            then run <code>npm run build</code>.
+          </p>
+          <div class="toolbar">
+            <button class="btn primary" id="btn-copy-export" type="button">Copy catalog module</button>
+            <button class="btn" id="btn-download-export" type="button">Download soundCatalog.js</button>
+            <button class="btn" id="btn-copy-changed" type="button">Copy changed only (JSON)</button>
+            <button class="btn" id="btn-reset-all" type="button">Reset all</button>
+          </div>
+          <div id="export-status" class="status" aria-live="polite"></div>
+          <textarea id="export-text" readonly spellcheck="false" aria-label="Exported catalog module"></textarea>
+          <h2 style="margin-top:14px">Import</h2>
+          <p class="hint">
+            Paste an exported catalog module, a JSON object (<code>{"gunShot": [1, .05, 220]}</code>)
+            or a single ZzFX array (applies to the selected sound).
+          </p>
+          <textarea id="import-text" spellcheck="false" aria-label="Import text"></textarea>
+          <div class="toolbar" style="margin-top:8px">
+            <button class="btn" id="btn-import" type="button">Import</button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    __STATIC_SITE_FOOTER__
+  </main>
+
+<!-- __INLINE_SCRIPT__ -->
+</body>
+</html>

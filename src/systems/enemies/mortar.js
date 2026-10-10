@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { moveEnemyWithTerrain, normalize, spawnFloatingText } from "./common.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
 const ENEMY_CONFIG = GAME_CONFIG.enemies.archetypes;
@@ -66,6 +67,7 @@ export function updateMortarBehavior(gameState, enemy, player, world, dt, speedM
     duration: AI_CONFIG.mortarTelegraphDuration,
     source: "mortar",
     onTrigger() {
+      playSfx("explosion", { volume: 0.8 });
       const hit = Math.hypot(player.x - target.x, player.y - target.y) <= dangerRadius;
       if (hit) {
         const damage = ENEMY_CONFIG.mortar.impactDamage;

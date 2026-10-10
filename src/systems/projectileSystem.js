@@ -1,7 +1,9 @@
 import { updateProjectile } from "../entities/projectile.js";
 import { getMountainCollisionNormal, igniteTreesAt, isProjectileBlockedByMountain } from "./worldSystem.js";
+import { playSfx } from "../audio/sfx.js";
 
 function spawnProjectileObstacleImpact(gameState, projectile, collision) {
+  playSfx("obstacleImpact", { volume: projectile.owner === "enemy" ? 0.6 : 1 });
   const hitX = collision?.x ?? projectile.position.x;
   const hitY = collision?.y ?? projectile.position.y;
   const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y);

@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { createProjectile } from "../../entities/projectile.js";
 import { moveEnemyWithTerrain, normalize, pickShooterAimPoint } from "./common.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const ENEMY_CONFIG = GAME_CONFIG.enemies.archetypes;
 
@@ -45,6 +46,7 @@ export function updateAssaultShooterBehavior(gameState, enemy, player, world, dt
     const angle = baseAngle + (Math.random() * 2 - 1) * enemy.aimJitter;
     const speed = enemy.projectileSpeed * (0.95 + Math.random() * ENEMY_CONFIG.assaultShooter.projectile.speedVariance);
 
+    playSfx("enemyShoot");
     gameState.projectiles.push(
       createProjectile({
         position: { x: spawnX, y: spawnY },

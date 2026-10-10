@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from "../core/constants.js";
 import { PERK_HOOKS } from "./perks/contracts.js";
+import { playSfx } from "../audio/sfx.js";
 
 export function updatePlayerRuntime(gameState, dt) {
   const player = gameState.player;
@@ -34,6 +35,7 @@ export function applyPendingLevelUps(gameState, eventBus = null) {
     gameState.player.level += 1;
     gameState.player.xpToNext = Math.floor(gameState.player.xpToNext * GAME_CONFIG.player.levelUpXpMultiplier);
     gameState.player.perkPoints += GAME_CONFIG.player.levelUpPerkPoints;
+    playSfx("levelUp");
     eventBus?.emit("player:leveled-up", {
       previousLevel,
       level: gameState.player.level,

@@ -14,6 +14,10 @@ const templateHtmlPath = path.join(rootDir, "src", "index.template.html");
 const perkLibraryTemplateHtmlPath = path.join(rootDir, "src", "perk-library.template.html");
 const showcaseTemplateHtmlPath = path.join(rootDir, "src", "showcase.template.html");
 const skillsShowcaseTemplateHtmlPath = path.join(rootDir, "src", "skills-showcase.template.html");
+const soundShowcaseTemplateHtmlPath = path.join(rootDir, "src", "sound-showcase.template.html");
+const soundShowcaseJsEntryPath = path.join(rootDir, "src", "sound-showcase", "main.js");
+const outputSoundShowcaseSourceHtmlPath = path.join(distDir, "sound-showcase.source.html");
+const outputSoundShowcaseHtmlPath = path.join(distDir, "sound-showcase.html");
 const sourceCssPath = path.join(rootDir, "src", "style.css");
 const staticPagesCssPath = path.join(rootDir, "src", "static-pages.css");
 const sourceJsEntryPath = path.join(rootDir, "src", "main.js");
@@ -47,6 +51,7 @@ function buildStaticPageNav(currentPage) {
     { href: "./perk-library.html", label: "Perk Library", key: "perk-library" },
     { href: "./showcase.html", label: "Enemy Showcase", key: "showcase" },
     { href: "./skills-showcase.html", label: "Skill Showcase", key: "skills-showcase" },
+    { href: "./sound-showcase.html", label: "Sound Lab", key: "sound-showcase" },
   ];
 
   return links
@@ -201,6 +206,7 @@ function buildLandingHtml(appVersion) {
         <a href="./perk-library.html">Perk Library</a>
         <a href="./showcase.html">Enemy Showcase</a>
         <a href="./skills-showcase.html">Skill Showcase</a>
+        <a href="./sound-showcase.html">Sound Lab</a>
         <a href="https://github.com/GIider/top-down-survival-shooter">GitHub Repository</a>
       </div>
       <div class="meta">Build version ${escapeHtml(appVersion)}</div>
@@ -365,6 +371,42 @@ async function runBuild() {
     keepClosingSlash: true,
   });
 
+  const soundShowcaseJsBundleResult = await build({
+    entryPoints: [soundShowcaseJsEntryPath],
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    legalComments: "none",
+    minify: false,
+  });
+  const soundShowcaseTemplateHtml = await readFile(soundShowcaseTemplateHtmlPath, "utf8");
+  const soundShowcaseSourceHtml = soundShowcaseTemplateHtml
+    .replace(/__APP_VERSION__/g, appVersion)
+    .replace(
+      "__STATIC_SITE_HEADER__",
+      buildStaticPageHeader({
+        title: "Sound Lab",
+        subtitle:
+          "Preview and tweak every ZzFX sound effect, then export the result back into src/audio/soundCatalog.js.",
+        currentPage: "sound-showcase",
+      })
+    )
+    .replace("__STATIC_SITE_FOOTER__", buildStaticPageFooter(appVersion))
+    .replace("<!-- __INLINE_SCRIPT__ -->", `  <script>\n${soundShowcaseJsBundleResult.outputFiles[0].text}\n  </script>`);
+  const soundShowcaseHtml = await minify(soundShowcaseSourceHtml, {
+    collapseWhitespace: true,
+    removeComments: true,
+    removeRedundantAttributes: true,
+    removeOptionalTags: false,
+    removeEmptyAttributes: true,
+    minifyCSS: true,
+    minifyJS: true,
+    useShortDoctype: true,
+    keepClosingSlash: true,
+  });
+
   await mkdir(distDir, { recursive: true });
   await rm(legacyPerksDirPath, { recursive: true, force: true });
 
@@ -415,11 +457,13 @@ async function runBuild() {
   await writeFile(outputShowcaseHtmlPath, showcaseHtml, "utf8");
   await writeFile(outputSkillsShowcaseSourceHtmlPath, skillsShowcaseSourceHtml, "utf8");
   await writeFile(outputSkillsShowcaseHtmlPath, skillsShowcaseHtml, "utf8");
+  await writeFile(outputSoundShowcaseSourceHtmlPath, soundShowcaseSourceHtml, "utf8");
+  await writeFile(outputSoundShowcaseHtmlPath, soundShowcaseHtml, "utf8");
   await writeFile(outputStaticPagesCssPath, minifiedStaticPagesCssResult.code, "utf8");
   await writeFile(outputLandingHtmlPath, landingHtml, "utf8");
 
   console.log(
-    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html + dist/skills-showcase.html (version ${appVersion})`
+    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html + dist/skills-showcase.html + dist/sound-showcase.html (version ${appVersion})`
   );
 }
 

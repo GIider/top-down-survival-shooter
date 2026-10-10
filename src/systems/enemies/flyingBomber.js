@@ -1,6 +1,7 @@
 import { CANVAS, GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { spawnFloatingText } from "./common.js";
+import { playSfx } from "../../audio/sfx.js";
 
 const FLY_CONFIG = GAME_CONFIG.enemies.archetypes.flyingBomber;
 
@@ -95,6 +96,7 @@ function dropBomb(gameState, enemy, player) {
     duration: FLY_CONFIG.bombTelegraphDuration,
     source: "flyingBomber",
     onTrigger() {
+      playSfx("explosion", { volume: 0.8 });
       const dist = Math.hypot(player.x - bx, player.y - by);
       if (dist <= radius) {
         player.hp -= damage;
