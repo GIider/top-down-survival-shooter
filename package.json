@@ -9,8 +9,10 @@
     "test:regression:showcase": "node tests/regression/showcase.regression.mjs",
     "test:regression:audio": "node tests/regression/audio.regression.mjs",
     "test:regression:gamepad": "node tests/regression/gamepad.regression.mjs",
-    "test:regression": "npm run test:regression:perkEngine && npm run test:regression:showcase && npm run test:regression:audio && npm run test:regression:gamepad && npm run test:regression:boss",
-    "test:regression:boss": "node tests/regression/boss.regression.mjs"
+    "test:regression": "npm run test:regression:perkEngine && npm run test:regression:showcase && npm run test:regression:audio && npm run test:regression:gamepad && npm run test:regression:boss && npm run test:regression:sim",
+    "test:regression:boss": "node tests/regression/boss.regression.mjs",
+    "test:regression:sim": "node tests/regression/sim.regression.mjs",
+    "balance": "node scripts/balance.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.4",

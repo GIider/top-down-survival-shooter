@@ -32,6 +32,11 @@ const outputShowcaseSourceHtmlPath = path.join(distDir, "showcase.source.html");
 const outputShowcaseHtmlPath = path.join(distDir, "showcase.html");
 const outputSkillsShowcaseSourceHtmlPath = path.join(distDir, "skills-showcase.source.html");
 const outputSkillsShowcaseHtmlPath = path.join(distDir, "skills-showcase.html");
+const simLabTemplateHtmlPath = path.join(rootDir, "src", "sim-lab.template.html");
+const simLabJsEntryPath = path.join(rootDir, "src", "sim-lab", "main.js");
+const simLabWorkerEntryPath = path.join(rootDir, "src", "sim-lab", "worker.js");
+const outputSimLabSourceHtmlPath = path.join(distDir, "sim-lab.source.html");
+const outputSimLabHtmlPath = path.join(distDir, "sim-lab.html");
 const outputStaticPagesCssPath = path.join(distDir, "static-pages.css");
 const outputLandingHtmlPath = path.join(distDir, "index.html");
 const legacyPerksDirPath = path.join(distDir, "perks");
@@ -52,6 +57,7 @@ function buildStaticPageNav(currentPage) {
     { href: "./showcase.html", label: "Enemy Showcase", key: "showcase" },
     { href: "./skills-showcase.html", label: "Skill Showcase", key: "skills-showcase" },
     { href: "./sound-showcase.html", label: "Sound Lab", key: "sound-showcase" },
+    { href: "./sim-lab.html", label: "Balance Lab", key: "sim-lab" },
   ];
 
   return links
@@ -207,6 +213,7 @@ function buildLandingHtml(appVersion) {
         <a href="./showcase.html">Enemy Showcase</a>
         <a href="./skills-showcase.html">Skill Showcase</a>
         <a href="./sound-showcase.html">Sound Lab</a>
+        <a href="./sim-lab.html">Balance Lab</a>
         <a href="https://github.com/GIider/top-down-survival-shooter">GitHub Repository</a>
       </div>
       <div class="meta">Build version ${escapeHtml(appVersion)}</div>
@@ -407,6 +414,24 @@ async function runBuild() {
     keepClosingSlash: true,
   });
 
+  const iifeOptions = { bundle: true, write: false, format: "iife", platform: "browser", target: "es2020", legalComments: "none", minify: false };
+  const simWorkerBundle = (await build({ ...iifeOptions, entryPoints: [simLabWorkerEntryPath] })).outputFiles[0].text;
+  const simLabJsBundle = (await build({ ...iifeOptions, entryPoints: [simLabJsEntryPath] })).outputFiles[0].text;
+  const simLabTemplateHtml = await readFile(simLabTemplateHtmlPath, "utf8");
+  const simLabSourceHtml = simLabTemplateHtml
+    .replace(/__APP_VERSION__/g, appVersion)
+    .replace(
+      "__STATIC_SITE_HEADER__",
+      buildStaticPageHeader({
+        title: "Balance Lab",
+        subtitle: "Run bots of different skill and weapon choices through the real game systems to tune spawn rates and perks, or watch a bot play.",
+        currentPage: "sim-lab",
+      })
+    )
+    .replace("__STATIC_SITE_FOOTER__", buildStaticPageFooter(appVersion))
+    .replace("__SIM_WORKER_SOURCE__", () => simWorkerBundle.replace(/<\/script/gi, "<\\/script"))
+    .replace("<!-- __INLINE_SCRIPT__ -->", () => `  <script>\n${simLabJsBundle.replace(/<\/script/gi, "<\\/script")}\n  </script>`);
+
   await mkdir(distDir, { recursive: true });
   await rm(legacyPerksDirPath, { recursive: true, force: true });
 
@@ -459,11 +484,13 @@ async function runBuild() {
   await writeFile(outputSkillsShowcaseHtmlPath, skillsShowcaseHtml, "utf8");
   await writeFile(outputSoundShowcaseSourceHtmlPath, soundShowcaseSourceHtml, "utf8");
   await writeFile(outputSoundShowcaseHtmlPath, soundShowcaseHtml, "utf8");
+  await writeFile(outputSimLabSourceHtmlPath, simLabSourceHtml, "utf8");
+  await writeFile(outputSimLabHtmlPath, simLabSourceHtml, "utf8");
   await writeFile(outputStaticPagesCssPath, minifiedStaticPagesCssResult.code, "utf8");
   await writeFile(outputLandingHtmlPath, landingHtml, "utf8");
 
   console.log(
-    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html + dist/skills-showcase.html + dist/sound-showcase.html (version ${appVersion})`
+    `Build complete: dist/index.html + dist/game.html + dist/perk-library.html + dist/showcase.html + dist/skills-showcase.html + dist/sound-showcase.html + dist/sim-lab.html (version ${appVersion})`
   );
 }
 

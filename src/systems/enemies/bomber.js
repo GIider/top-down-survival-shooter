@@ -1,3 +1,4 @@
+import { recordPlayerDamage } from "../damageStats.js";
 import { GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { moveEnemyWithTerrain, normalize, spawnFloatingText } from "./common.js";
@@ -14,6 +15,7 @@ function explodeBomber(gameState, enemy, player, enemyIndex) {
 
   if (distance <= radius) {
     player.hp -= damage;
+    recordPlayerDamage(gameState, "bomber", damage);
     spawnFloatingText(gameState, `-${damage}`, player.x, player.y - player.radius - 8, "255,142,150", 22, "damage");
     gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 2.3);
     gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + 0.2);

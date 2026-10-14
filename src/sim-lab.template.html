@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="app-version" content="__APP_VERSION__" />
+  <title>Balance Lab - Top-Down Survival Shooter</title>
+  <link rel="stylesheet" href="./static-pages.css" />
+  <style>
+    .lab-grid { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 900px) { .lab-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+    .card h2 { margin: 0 0 10px; font-size: 1.02rem; }
+    .card h3 { margin: 14px 0 6px; font-size: 0.9rem; color: var(--muted); font-weight: 600; }
+    .card p.note { margin: 0 0 10px; color: var(--muted); font-size: 0.84rem; line-height: 1.4; }
+    .field { display: grid; grid-template-columns: 1fr 90px; gap: 8px; align-items: center; margin: 5px 0; font-size: 0.86rem; }
+    .field input, .field select, textarea, .watch-controls select, .watch-controls input {
+      background: #0b1219; color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 7px; font: inherit; min-width: 0;
+    }
+    .field.wide { grid-template-columns: 1fr; gap: 3px; }
+    textarea { width: 100%; min-height: 60px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; }
+    .bot-grid { display: grid; grid-template-columns: 70px repeat(4, 1fr); gap: 4px 6px; font-size: 0.8rem; align-items: center; }
+    .bot-grid .hd { color: var(--muted); text-align: center; }
+    .bot-grid label { display: contents; }
+    .bot-grid input { justify-self: center; }
+    button { background: rgba(136,229,185,0.12); color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; cursor: pointer; font: inherit; margin: 4px 6px 4px 0; }
+    button:hover { background: rgba(136,229,185,0.22); }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    button.secondary { color: var(--text); border-color: var(--border); background: rgba(255,255,255,0.04); }
+    .perk-pick { max-height: 160px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px; font-size: 0.8rem; }
+    .perk-pick label { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
+    #progress { height: 6px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    #progress > div { height: 100%; width: 0; background: var(--accent); transition: width 0.1s; }
+    #status { font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
+    table.results { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.results th, table.results td { text-align: right; padding: 5px 7px; border-bottom: 1px solid rgba(255,255,255,0.07); white-space: nowrap; }
+    table.results th:first-child, table.results td:first-child { text-align: left; }
+    table.results th { color: var(--muted); font-weight: 600; }
+    .scroll { overflow-x: auto; }
+    .chart svg { width: 100%; height: auto; display: block; }
+    .chart text { fill: #c8d7e3; font-size: 11px; font-family: "Segoe UI", sans-serif; }
+    .chart .muted { fill: #8ba1b4; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.78rem; margin-top: 6px; color: var(--muted); }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    .watch-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 0.86rem; }
+    #watch-canvas { width: 100%; aspect-ratio: 16 / 9; background: #05080b; border-radius: 10px; border: 1px solid var(--border); display: block; }
+    #watch-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 0.84rem; color: var(--muted); }
+    #watch-stats b { color: var(--text); font-weight: 600; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+    .pos { color: #88e5b9; } .neg { color: #ff8a98; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    __STATIC_SITE_HEADER__
+
+    <div class="lab-grid">
+      <aside>
+        <section class="card">
+          <h2>Simulation setup</h2>
+          <p class="note">Bots play seeded, deterministic runs in parallel web workers. Every run uses the same game systems as the real game.</p>
+          <h3>Bots (skill tier × weapon)</h3>
+          <div class="bot-grid" id="bot-grid"></div>
+          <h3>Run settings</h3>
+          <div class="field"><label for="seeds">Seeds per bot</label><input id="seeds" type="number" min="1" max="200" value="12" /></div>
+          <div class="field"><label for="duration">Max duration (s)</label><input id="duration" type="number" min="30" max="1800" step="30" value="420" /></div>
+          <h3>Spawn weights</h3>
+          <div id="weights"></div>
+          <h3>Other overrides</h3>
+          <textarea id="overrides" placeholder="one per line: path=value&#10;enemies.spawn.rateBase=0.7&#10;balance.spawnScaling=0.03"></textarea>
+          <div>
+            <button id="run">Run simulation</button>
+            <button id="reset-weights" class="secondary">Reset values</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Parameter sweep</h2>
+          <p class="note">Re-runs the selected bots for several values of one config path (array entries are addressed by type, e.g. <code>enemies.spawn.weights.mortar.weight</code>).</p>
+          <div class="field wide"><label for="sweep-path">Path</label><input id="sweep-path" value="enemies.spawn.weights.mortar.weight" /></div>
+          <div class="field wide"><label for="sweep-values">Values (comma separated)</label><input id="sweep-values" value="0,8,16,32" /></div>
+          <button id="run-sweep">Run sweep</button>
+        </section>
+
+        <section class="card">
+          <h2>Perk A/B test</h2>
+          <p class="note">Forces the bot to take the perk whenever it is offered and compares survival to a baseline on the same seeds.</p>
+          <div class="perk-pick" id="perk-pick"></div>
+          <button id="run-perks">Run A/B for selected</button>
+        </section>
+
+        <div id="progress"><div></div></div>
+        <div id="status">Idle.</div>
+      </aside>
+
+      <section id="results">
+        <div class="card" id="empty-state">
+          <h2>No results yet</h2>
+          <p class="note">Pick some bots and press <b>Run simulation</b>. Charts for survival, damage sources, kill mix, perk lift and sweeps appear here.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" id="watch-card">
+      <h2>Watch a bot play</h2>
+      <p class="note">Plays one run live with the real renderer on this page. Same seed and bot reproduce the exact run that batch simulations measured.</p>
+      <div class="watch-controls">
+        <label>Bot <select id="watch-bot"></select></label>
+        <label>Seed <input id="watch-seed" type="number" value="1" min="1" style="width:80px" /></label>
+        <label>Speed <select id="watch-speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option></select></label>
+        <button id="watch-start">Start / restart</button>
+        <button id="watch-pause" class="secondary">Pause</button>
+      </div>
+      <canvas id="watch-canvas" width="1280" height="720"></canvas>
+      <div id="watch-stats"></div>
+    </section>
+
+    __STATIC_SITE_FOOTER__
+  </main>
+
+<script type="text/plain" id="sim-worker-src">__SIM_WORKER_SOURCE__</script>
+<!-- __INLINE_SCRIPT__ -->
+</body>
+</html>

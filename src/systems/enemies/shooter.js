@@ -26,6 +26,7 @@ export function updateShooterBehavior(gameState, enemy, player, world, dt, speed
         position: { x: enemy.x, y: enemy.y },
         velocity: { x: fireDir.x * ENEMY_CONFIG.shooter.projectile.speed, y: fireDir.y * ENEMY_CONFIG.shooter.projectile.speed },
         damage: ENEMY_CONFIG.shooter.projectile.damage,
+        source: "shooter",
         lifetime: ENEMY_CONFIG.shooter.projectile.lifetime,
         owner: "enemy",
         color: ENEMY_CONFIG.shooter.projectile.color,

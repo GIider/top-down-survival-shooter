@@ -1,3 +1,4 @@
+import { recordPlayerDamage } from "../damageStats.js";
 import { GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { moveEnemyWithTerrain, normalize, spawnFloatingText } from "./common.js";
@@ -72,6 +73,7 @@ export function updateMortarBehavior(gameState, enemy, player, world, dt, speedM
       if (hit) {
         const damage = ENEMY_CONFIG.mortar.impactDamage;
         player.hp -= damage;
+        recordPlayerDamage(gameState, "mortar", damage);
         spawnFloatingText(gameState, `-${damage}`, player.x, player.y - player.radius - 8, "255,142,150", 22, "damage");
         gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 2.4);
         gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + 0.22);

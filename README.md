@@ -125,3 +125,13 @@ Deployment is fully automated via GitHub Actions:
 
 * The entire game is bundled into a single HTML file for easy deployment
 * No backend required — runs entirely in the browser
+
+## Balance testing
+
+Bots play seeded, deterministic headless runs through the real game systems.
+
+- CLI: `npm run balance -- --bots idle,average:gun,expert:gun --seeds 20 --duration 600`
+  - `--sweep path=a,b,c`, `--override path=value`, `--perks id1,id2` (forced-perk A/B), `--perk-lift`, `--workers N`, `--out report.json`
+  - Config paths address array entries by type, e.g. `enemies.spawn.weights.mortar.weight`.
+- Web UI: `dist/sim-lab.html` (Balance Lab) shows survival distributions, damage/kill breakdowns, perk lift, sweeps and a live "watch a bot" view. Query params: `?seeds=6&duration=120&bots=idle,average:gun&autorun=1`.
+- Code: `src/core/simStep.js` (shared sim frame), `src/sim/` (headless game, bots, runner), `src/sim-lab/` (page).

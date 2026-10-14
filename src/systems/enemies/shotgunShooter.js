@@ -36,6 +36,7 @@ export function updateShotgunShooterBehavior(gameState, enemy, player, world, dt
         position: { x: enemy.x, y: enemy.y },
         velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
         damage: enemy.projectileDamage,
+        source: "shotgunShooter",
         lifetime: enemy.projectileLifetime,
         owner: "enemy",
         color: ENEMY_CONFIG.shotgunShooter.projectile.color,

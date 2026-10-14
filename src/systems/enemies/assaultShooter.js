@@ -52,6 +52,7 @@ export function updateAssaultShooterBehavior(gameState, enemy, player, world, dt
         position: { x: spawnX, y: spawnY },
         velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
         damage: enemy.projectileDamage,
+        source: "assaultShooter",
         lifetime: enemy.projectileLifetime,
         owner: "enemy",
         color: ENEMY_CONFIG.assaultShooter.projectile.color,

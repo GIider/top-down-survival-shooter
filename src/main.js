@@ -6,40 +6,16 @@ import { createInput } from "./core/input.js";
 import { createLoop } from "./core/loop.js";
 import { loadPerkProgress, savePerkProgress } from "./core/perkProgress.js";
 import { createRenderer } from "./core/renderer.js";
+import { createSimContext, stepSim } from "./core/simStep.js";
 import { createView } from "./core/view.js";
 import { loadRunHistory, saveRunHistory } from "./core/runHistory.js";
 import { AUTO_AIM_SNAP_MAX, loadSettings, saveSettings } from "./core/settings.js";
 import { createAutoAim } from "./systems/autoAim.js";
 import { createInitialState } from "./core/state.js";
-import { updatePlayerMovement } from "./entities/player.js";
-import { updateCollisionSystem } from "./systems/collisionSystem.js";
 import { createDebugSystem, DEBUG_MENU_ITEMS } from "./systems/debugSystem.js";
-import { updateBossDirector } from "./systems/bosses/bossSystem.js";
-import { updateEnemies, updateEnemySpawning } from "./systems/enemySystem.js";
-import { updateEffects, updateFloatingTexts, updateSlashEffects } from "./systems/effectSystem.js";
-import { updateIndicators } from "./systems/indicatorSystem.js";
 import { applyPerk, allPerks, getPerkChoices } from "./systems/perkSystem.js";
 import { createPerkEngine } from "./systems/perks/perkEngine.js";
-import { updatePickups } from "./systems/pickups/index.js";
-import { applyPendingLevelUps, updatePlayerRuntime } from "./systems/playerRuntimeSystem.js";
-import { updateProjectiles } from "./systems/projectileSystem.js";
-import {
-  tryBlink,
-  tryFireball,
-  tryShout,
-  updateBlinkCharges,
-  updateBlinkPreview,
-  updateFireballs,
-  updateLingeringZones,
-  updateShoutPreview,
-  updateShoutWaves,
-} from "./systems/skills/index.js";
-import {
-  createWorldSystem,
-  getMovementSlowMultiplier,
-  resolvePositionAgainstMountains,
-  updateBurningTrees,
-} from "./systems/worldSystem.js";
+import { createWorldSystem } from "./systems/worldSystem.js";
 import { createWeaponSystem } from "./systems/weaponSystem.js";
 
 const canvas = document.getElementById("game");
@@ -67,10 +43,14 @@ services.setWeaponSystem(weaponSystem);
 services.setPerkEngine(perkEngine);
 services.setWorld(gameState.systems.world);
 
-let blinkCanceledDuringHold = false;
-let shoutCanceledDuringHold = false;
-
 const debugSystem = createDebugSystem(services);
+const simContext = createSimContext({ gameState, services });
+Object.defineProperty(simContext.options, "directorEnabled", {
+  get: () => !isDebugMode || debugSystem.isDirectorEnabled(),
+});
+Object.defineProperty(simContext.options, "noCooldowns", {
+  get: () => debugSystem.isNoCooldownsEnabled(),
+});
 const renderer = createRenderer(canvas, gameState, view, { debugSystem });
 const fpsTracker = createFpsTracker();
 
@@ -692,154 +672,42 @@ function update(dt) {
     return;
   }
 
-  gameState.time += dt;
+  stepSim(simContext, dt, input.movement(), () => {
+    let gamepadAim = null;
+    if (input.isGamepadActive()) {
+      gamepadAim = autoAim.update({
+        origin: gameState.player,
+        stickDir: input.isGamepadAimActive() ? input.gamepadAimDirection() : null,
+        enemies: gameState.enemies,
+        snap: gameState.settings.autoAimSnap / AUTO_AIM_SNAP_MAX,
+        dt,
+      });
+    }
+    gameState.autoAimTarget = gamepadAim?.target ?? null;
+    const aimRadius = GAME_CONFIG.gamepad.aimRadius;
+    const worldPointer = {
+      x: gamepadAim ? gameState.player.x + gamepadAim.x * aimRadius : gameState.player.x + (input.pointer.x - view.width * 0.5),
+      y: gamepadAim ? gameState.player.y + gamepadAim.y * aimRadius : gameState.player.y + (input.pointer.y - view.height * 0.5),
+      down: input.pointer.down,
+    };
 
-  const movement = input.movement();
-  const world = gameState.systems.world;
-  const treeSlow = getMovementSlowMultiplier(world, gameState.player.x, gameState.player.y, gameState.player.radius);
-  updatePlayerMovement(gameState.player, movement, dt, {
-    terrainMultiplier: treeSlow,
-    resolveCollision(player) {
-      const resolved = resolvePositionAgainstMountains(world, player.x, player.y, player.radius);
-      player.x = resolved.x;
-      player.y = resolved.y;
-    },
+    const blinkHeld = input.isBlinkHeld();
+    const shoutHeld = input.isShoutHeld();
+    input.consumeShoutPress();
+    return {
+      worldPointer,
+      clicked,
+      reloadPressed,
+      blinkHeld,
+      shoutHeld,
+      shoutReleased: input.consumeShoutRelease(),
+      fireballPressed: input.consumeFireballPress(),
+      releasedClick: input.consumePointerRelease(),
+      weaponSlot: input.consumeWeaponSlotPress(),
+      cancelPressed: input.consumeCancelPress(),
+      blinkReleased: input.consumeBlinkRelease(),
+    };
   });
-
-  updateBlinkCharges(services, dt);
-  updatePlayerRuntime(gameState, dt);
-  if (debugSystem.isNoCooldownsEnabled()) {
-    const player = gameState.player;
-    player.shoutCooldownRemaining = 0;
-    player.fireballCooldownRemaining = 0;
-    player.blinkChargeTimer = 0;
-    player.blinkCooldownRemaining = 0;
-    player.blinkCharges = player.blinkMaxCharges;
-  }
-
-  let gamepadAim = null;
-  if (input.isGamepadActive()) {
-    gamepadAim = autoAim.update({
-      origin: gameState.player,
-      stickDir: input.isGamepadAimActive() ? input.gamepadAimDirection() : null,
-      enemies: gameState.enemies,
-      snap: gameState.settings.autoAimSnap / AUTO_AIM_SNAP_MAX,
-      dt,
-    });
-  }
-  gameState.autoAimTarget = gamepadAim?.target ?? null;
-  const aimRadius = GAME_CONFIG.gamepad.aimRadius;
-  const worldPointer = {
-    x: gamepadAim ? gameState.player.x + gamepadAim.x * aimRadius : gameState.player.x + (input.pointer.x - view.width * 0.5),
-    y: gamepadAim ? gameState.player.y + gamepadAim.y * aimRadius : gameState.player.y + (input.pointer.y - view.height * 0.5),
-    down: input.pointer.down,
-  };
-  gameState.player.aim.x = worldPointer.x;
-  gameState.player.aim.y = worldPointer.y;
-
-  const holdingBlink = input.isBlinkHeld();
-  if (holdingBlink) {
-    updateBlinkPreview(services, worldPointer, blinkCanceledDuringHold);
-  } else {
-    gameState.player.blinkPreview.active = false;
-  }
-
-  const holdingShout = input.isShoutHeld();
-  if (holdingShout) {
-    updateShoutPreview(services, shoutCanceledDuringHold);
-  } else {
-    gameState.player.shoutPreview.active = false;
-  }
-
-  input.consumeShoutPress();
-  const shoutReleased = input.consumeShoutRelease();
-  const fireballPressed = input.consumeFireballPress();
-  const releasedClick = input.consumePointerRelease();
-  const weaponSlot = input.consumeWeaponSlotPress();
-  const cancelPressed = input.consumeCancelPress();
-
-  if (weaponSlot === 1 || weaponSlot === 2 || weaponSlot === 3 || weaponSlot === 4) {
-    weaponSystem.switchWeapon(weaponSlot);
-  }
-
-  if (holdingBlink && (reloadPressed || clicked || cancelPressed)) {
-    blinkCanceledDuringHold = true;
-    gameState.player.blinkPreview.active = false;
-  }
-
-  if (holdingShout && (clicked || cancelPressed)) {
-    shoutCanceledDuringHold = true;
-    gameState.player.shoutPreview.active = false;
-  }
-
-  if (input.consumeBlinkRelease()) {
-    if (!blinkCanceledDuringHold) {
-      tryBlink(services, worldPointer);
-    }
-    blinkCanceledDuringHold = false;
-    gameState.player.blinkPreview.active = false;
-  }
-
-  if (shoutReleased) {
-    if (!shoutCanceledDuringHold) {
-      tryShout(services);
-    }
-    shoutCanceledDuringHold = false;
-    gameState.player.shoutPreview.active = false;
-  }
-
-  if (fireballPressed) {
-    tryFireball(services, worldPointer);
-  }
-
-  if (reloadPressed && weaponSystem.isGunSelected()) {
-    if (weaponSystem.isReloading) {
-      weaponSystem.onReloadClick(gameState.player, perkEngine);
-    } else {
-      weaponSystem.startReload(gameState.player);
-    }
-  }
-
-  if (clicked && weaponSystem.isGunSelected() && weaponSystem.isReloading) {
-    weaponSystem.onReloadClick(gameState.player, perkEngine);
-  } else if (weaponSystem.isMeleeSelected() && (input.pointer.down || clicked)) {
-    weaponSystem.tryMeleeAttack(gameState.player, worldPointer, gameState.slashEffects);
-  } else if (weaponSystem.isBowSelected()) {
-    if (input.pointer.down) {
-      weaponSystem.startBowCharge();
-    }
-    if (releasedClick) {
-      weaponSystem.releaseBowShot(gameState.player, worldPointer, gameState.projectiles, perkEngine);
-    }
-  } else if (weaponSystem.isGunSelected() && (input.pointer.down || clicked)) {
-    weaponSystem.tryFire(gameState.player, worldPointer, gameState.projectiles, perkEngine);
-  }
-
-  weaponSystem.update(dt, gameState.player, worldPointer);
-
-  updateProjectiles(services, dt);
-  updateFireballs(services, dt);
-  updateShoutWaves(services, dt);
-  updateLingeringZones(services, dt);
-  updateBurningTrees(world, dt);
-  updateBossDirector(gameState, dt, { enabled: !isDebugMode || debugSystem.isDirectorEnabled() });
-  updateEnemySpawning(gameState, dt, { enableSpawns: !isDebugMode || debugSystem.isDirectorEnabled() });
-  updateEnemies(gameState, dt);
-
-  const triggeredIndicators = updateIndicators(gameState.indicators, dt);
-  triggeredIndicators.forEach((indicator) => {
-    if (typeof indicator.onTrigger === "function") {
-      indicator.onTrigger();
-    }
-  });
-
-  updateCollisionSystem(gameState, dt);
-  updatePickups(services, dt);
-
-  updateFloatingTexts(gameState, dt);
-  updateSlashEffects(gameState, dt);
-  updateEffects(gameState, dt);
-  applyPendingLevelUps(gameState, services.events);
 
   if (gameState.player.perkPoints > 0 && !gameState.player.perkModalOpen && !gameState.paused && gameState.player.perkChoices.length === 0) {
     openPerkModal({ refreshChoices: gameState.player.perkChoices.length === 0 });

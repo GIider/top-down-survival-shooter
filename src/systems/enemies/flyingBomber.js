@@ -1,3 +1,4 @@
+import { recordPlayerDamage } from "../damageStats.js";
 import { CANVAS, GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { spawnFloatingText } from "./common.js";
@@ -100,6 +101,7 @@ function dropBomb(gameState, enemy, player) {
       const dist = Math.hypot(player.x - bx, player.y - by);
       if (dist <= radius) {
         player.hp -= damage;
+        recordPlayerDamage(gameState, "flyingBomber", damage);
         spawnFloatingText(gameState, `-${damage}`, player.x, player.y - player.radius - 8, "255,142,150", 22, "damage");
         gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 2.1);
         gameState.screenFx.damageFlash = Math.min(1, gameState.screenFx.damageFlash + 0.18);

@@ -1,3 +1,4 @@
+import { recordEnemyKill, recordPlayerDamage } from "./damageStats.js";
 import { BALANCE, GAME_CONFIG } from "../core/constants.js";
 import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../entities/player.js";
 import { createEnemy } from "../entities/enemy.js";
@@ -263,6 +264,7 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
     const playerDistance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
     if (playerDistance <= explosionRadius) {
       player.hp -= explosionDamage;
+      recordPlayerDamage(gameState, "bomber", explosionDamage);
       spawnFloatingText(
         gameState,
         `-${explosionDamage}`,
@@ -301,6 +303,7 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
   gameState.screenFx.actionFlash = Math.min(1, gameState.screenFx.actionFlash + 0.08);
   gameState.enemies.splice(enemyIndex, 1);
   gameState.runStats.kills += 1;
+  recordEnemyKill(gameState, enemy.type, enemy.xp);
   maybeSpawnPickupOnEnemyDeath(gameState, enemy, gameState.time * BALANCE.spawnScaling, weaponSystem, normalizedDamageSource);
   player.xp += enemy.xp;
 }
@@ -394,6 +397,7 @@ function detonateFireball(gameState, fireball, playerProjectileIndex = null) {
 export function updateCollisionSystem(gameState, dt = 0.016) {
   const player = gameState.player;
   let accumulatedContactDamage = 0;
+  const contactDamageByType = {};
   let accumulatedTreeFireDamage = 0;
   const weapon = gameState.systems.weaponSystem;
   const world = gameState.systems.world;
@@ -912,6 +916,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
       const dy = player.y - projectile.position.y;
       if (Math.hypot(dx, dy) <= player.radius + projectile.radius) {
         player.hp -= projectile.damage;
+        recordPlayerDamage(gameState, projectile.source || "projectile", projectile.damage);
         spawnFloatingText(
           gameState,
           `-${Math.max(1, Math.round(projectile.damage))}`,
@@ -1007,6 +1012,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     const dy = enemy.y - player.y;
     if (Math.hypot(dx, dy) <= enemy.radius + player.radius) {
       accumulatedContactDamage += enemy.contactDamage * dt;
+      contactDamageByType[enemy.type] = (contactDamageByType[enemy.type] || 0) + enemy.contactDamage * dt;
     }
   });
 
@@ -1042,6 +1048,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
 
   if (accumulatedContactDamage > 0) {
     player.hp -= accumulatedContactDamage;
+    Object.keys(contactDamageByType).forEach((type) => recordPlayerDamage(gameState, type, contactDamageByType[type]));
     spawnFloatingText(
       gameState,
       `-${Math.max(1, Math.round(accumulatedContactDamage))}`,
@@ -1058,6 +1065,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
 
   if (accumulatedTreeFireDamage > 0) {
     player.hp -= accumulatedTreeFireDamage;
+    recordPlayerDamage(gameState, "fire", accumulatedTreeFireDamage);
     spawnFloatingText(
       gameState,
       `-${Math.max(1, Math.round(accumulatedTreeFireDamage))}`,
