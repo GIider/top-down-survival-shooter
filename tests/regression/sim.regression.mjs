@@ -40,3 +40,21 @@ runTest("all weapon bots run without throwing", () => {
     runGame({ seed: 2, bot: createBot(spec), duration: 30 });
   }
 });
+
+// Coarse balance guard (see `npm run balance` for the full picture): skill tiers must stay ordered and
+// survive roughly the intended times. Bands are deliberately loose so seed noise doesn't flake the test.
+runTest("skill tiers keep their intended survival bands", () => {
+  const median = (spec) => {
+    const times = [];
+    for (let seed = 1; seed <= 5; seed += 1) {
+      times.push(runGame({ seed, bot: createBot(spec), duration: 240 }).timeSurvived);
+    }
+    return times.sort((a, b) => a - b)[2];
+  };
+  const novice = median("novice:gun");
+  const average = median("average:gun");
+  const expert = median("expert:gun");
+  assert.ok(novice >= 30 && novice <= 90, `novice median ${novice}`);
+  assert.ok(average >= 80 && average <= 220, `average median ${average}`);
+  assert.ok(novice < average && average < expert, `tier order ${novice} < ${average} < ${expert}`);
+});

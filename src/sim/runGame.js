@@ -46,6 +46,7 @@ export function createBotSession({ seed = 1, bot, startWeapon, sampleEvery = 60 
     peakEnemies: 0,
     damageTaken: 0,
     firstBossTime: null,
+    firstBossKillTime: null,
     timeline: [],
     weaponTime: { 1: 0, 2: 0, 3: 0, 4: 0 },
   };
@@ -119,6 +120,9 @@ export function createBotSession({ seed = 1, bot, startWeapon, sampleEvery = 60 
       metrics.peakEnemies = Math.max(metrics.peakEnemies, gameState.enemies.length);
       if (metrics.firstBossTime === null && gameState.systems.boss?.activeBoss) {
         metrics.firstBossTime = gameState.time;
+      }
+      if (metrics.firstBossKillTime === null && (gameState.runStats.bossKills ?? 0) > 0) {
+        metrics.firstBossKillTime = gameState.time;
       }
       if (frame % sampleEvery === 0) {
         metrics.timeline.push({ t: +gameState.time.toFixed(1), hp: Math.round(hp), enemies: gameState.enemies.length, level: player.level, kills: gameState.runStats.kills });

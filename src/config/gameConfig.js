@@ -412,7 +412,7 @@ export const GAME_CONFIG = {
     schedule: [{ boss: "kaleidoscope", trigger: { type: "time", at: 180, repeat: 360 }, maxSpawns: 3 }],
     nukeMaxHpFraction: 0.05,
     kaleidoscope: {
-      hpBase: 5500,
+      hpBase: 4000,
       hpDifficultyScale: 120,
       radius: 46,
       color: "#c58cff",
