@@ -212,9 +212,9 @@ export const GAME_CONFIG = {
   player: {
     speed: 280,
     radius: 16,
-    baseHp: 100,
-    baseXpToNext: 60,
-    levelUpXpMultiplier: 1.5,
+    baseHp: 150,
+    baseXpToNext: 45,
+    levelUpXpMultiplier: 1.2,
     baseCritMultiplier: 1.5,
     levelUpPerkPoints: 1,
     perkSelectionLockDuration: 0.5,
