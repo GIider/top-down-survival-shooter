@@ -9,7 +9,7 @@ import os from "node:os";
 import { runJobs } from "../src/sim/batch.js";
 
 function parseArgs(argv) {
-  const args = { bots: ["average:gun"], seeds: 10, duration: 600, overrides: {}, sweep: null, perks: [], perkLift: false, out: null, workers: Math.max(1, os.cpus().length - 1) };
+  const args = { bots: ["average:gun"], seeds: 40, duration: 600, overrides: {}, sweep: null, perks: [], perkLift: false, out: null, workers: Math.max(1, os.cpus().length - 1) };
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i];
     const next = () => argv[++i];
@@ -46,6 +46,7 @@ function summarize(runs) {
     survivedP10: pct(times, 0.1),
     survivedP90: pct(times, 0.9),
     survivedMean: mean(times),
+    survivedCapped: runs.filter((r) => !r.died).length,
     kills: mean(runs.map((r) => r.kills)),
     level: mean(runs.map((r) => r.level)),
     bossKills: mean(runs.map((r) => r.bossKills)),
@@ -96,7 +97,7 @@ for (const cfg of configs) {
     }
   }
   console.log(`\n== ${cfg.label} ==`);
-  printTable(rows.map(({ config, ...rest }) => rest));
+  printTable(rows.map(({ config, survivedMean, ...rest }) => rest)); // mean omitted: outlier seeds skew it; kept in the JSON report
 }
 
 if (args.perks.length) {

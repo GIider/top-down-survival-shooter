@@ -690,6 +690,10 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
 
   for (let p = gameState.projectiles.length - 1; p >= 0; p -= 1) {
     const projectile = gameState.projectiles[p];
+    if (!projectile) {
+      // an earlier iteration (fireball detonation, chain effects) may have removed projectiles ahead of p
+      continue;
+    }
 
     if (projectile.owner === "enemy" && flailSnapshot) {
       const dxFlail = projectile.position.x - flailSnapshot.x;

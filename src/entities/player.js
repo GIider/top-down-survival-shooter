@@ -25,17 +25,3 @@ export function scaleDamageAgainstEnemy(player, enemy, damage) {
   void enemy;
   return damage;
 }
-
-export function gainXp(player, amount) {
-  player.xp += amount;
-
-  let leveledUp = false;
-  while (player.xp >= player.xpToNext) {
-    player.xp -= player.xpToNext;
-    player.level += 1;
-    player.xpToNext = Math.floor(player.xpToNext * 1.5);
-    leveledUp = true;
-  }
-
-  return leveledUp;
-}

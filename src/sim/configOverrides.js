@@ -1,4 +1,5 @@
 import { BALANCE, GAME_CONFIG } from "../core/constants.js";
+import { PICKUP_DEFS } from "../systems/pickups/pickupCatalog.js";
 
 function resolveParent(root, segments) {
   let node = root;
@@ -18,14 +19,16 @@ function resolveParent(root, segments) {
 
 /**
  * Applies { "enemies.spawn.weights.mortar.weight": 16, ... } to GAME_CONFIG in place
- * (array entries are addressed by their `type`/`id`/`boss`). Returns a restore function.
+ * (array entries are addressed by their `type`/`id`/`boss`; `pickups.*` maps to PICKUP_DEFS). Returns a restore function.
  * `balance.*` keys are mirrored into BALANCE, which is a copy taken at import time.
  */
 export function applyConfigOverrides(overrides = {}) {
   const restores = [];
   for (const [path, value] of Object.entries(overrides)) {
     const segments = path.split(".");
-    const parent = resolveParent(GAME_CONFIG, segments);
+    // "pickups.health.healAmount" addresses PICKUP_DEFS, which lives outside GAME_CONFIG
+    const root = segments[0] === "pickups" ? { pickups: PICKUP_DEFS } : GAME_CONFIG;
+    const parent = resolveParent(root, segments);
     const key = segments[segments.length - 1];
     const target = Array.isArray(parent) ? parent.find((e) => e.type === key || e.id === key) : parent;
     const prop = Array.isArray(parent) ? null : key;
