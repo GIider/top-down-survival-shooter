@@ -130,8 +130,28 @@ Deployment is fully automated via GitHub Actions:
 
 Bots play seeded, deterministic headless runs through the real game systems.
 
-- CLI: `npm run balance -- --bots idle,average:gun,expert:gun --seeds 20 --duration 600`
+- CLI: `npm run balance -- --bots idle,average:gun,expert:gun --seeds 40 --duration 600`
   - `--sweep path=a,b,c`, `--override path=value`, `--perks id1,id2` (forced-perk A/B), `--perk-lift`, `--workers N`, `--out report.json`
-  - Config paths address array entries by type, e.g. `enemies.spawn.weights.mortar.weight`.
+  - Config paths address array entries by type, e.g. `enemies.spawn.weights.mortar.weight`. `pickups.<type>.<prop>` addresses the pickup catalog (e.g. `pickups.health.healAmount`).
+  - Judge by median and p10/p90, not the mean: a few seeds survive to the cap and skew it (the mean is kept in the `--out` JSON). Use 40+ seeds; sweeps with fewer are mostly noise.
+  - Per-run metrics include `firstBossTime`, `firstBossKillTime`, `damageBySource` and `killsByType`.
 - Web UI: `dist/sim-lab.html` (Balance Lab) shows survival distributions, damage/kill breakdowns, perk lift, sweeps and a live "watch a bot" view. Query params: `?seeds=6&duration=120&bots=idle,average:gun&autorun=1`.
 - Code: `src/core/simStep.js` (shared sim frame), `src/sim/` (headless game, bots, runner), `src/sim-lab/` (page).
+
+### Balance targets and current state
+
+Targets (gun bot, median survival, 40 seeds): novice ~45s, average ~150s and reaching the boss about half the time,
+expert ~300s and beating it. Weapons should stay within ~15% of each other. `tests/regression/sim.regression.mjs`
+enforces coarse versions of the tier bands.
+
+Levers that actually move survival (found by sweeping): player base HP and the XP curve
+(`player.baseHp`, `player.baseXpToNext`, `player.levelUpXpMultiplier`), and which ranged enemies unlock at which
+stage (`enemies.spawn.weights[].minStage`, one stage = 45s). Single enemy-damage or spawn-rate tweaks barely move the
+median, and no individual perk was a significant outlier in forced-perk A/B at 30 seeds.
+
+Gotchas: forced-perk runs only apply the perk when the game offers it, so most seeds are unchanged and CIs are wide.
+The sim keeps running after a bot reaches the boss, so cap `--duration` when you only care about the early game.
+
+Boss threat: Kaleidoscope damage values were swept at 1x/1.5x/2x/3x. At 2x (current) the boss kills ~8% of expert and
+~20% of average runs that reach it; 3x raises that to ~18% / ~36%. Fight length (~80s median kill time at 4000 HP) is
+unaffected by damage.
