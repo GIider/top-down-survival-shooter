@@ -10,6 +10,7 @@ import {
 } from "./weapons/index.js";
 import { createDefaultShotPlan, PERK_HOOKS } from "./perks/contracts.js";
 import { playSfx } from "../audio/sfx.js";
+import { hypot2 } from "../core/mathUtil.js";
 
 const GUN_CONFIG = getGunConfig();
 const BOW_CONFIG = getBowConfig();
@@ -173,14 +174,14 @@ export class Weapon {
     const clamped = Math.max(0.5, Math.min(2, multiplier));
     this.flailVelX *= clamped;
     this.flailVelY *= clamped;
-    const speed = Math.hypot(this.flailVelX, this.flailVelY);
+    const speed = hypot2(this.flailVelX, this.flailVelY);
     const maxSpeed = FLAIL_CONFIG.maxImpactSpeed * 2;
     if (speed > maxSpeed) {
       const scale = maxSpeed / speed;
       this.flailVelX *= scale;
       this.flailVelY *= scale;
     }
-    this.flailHeadSpeed = Math.hypot(this.flailVelX, this.flailVelY);
+    this.flailHeadSpeed = hypot2(this.flailVelX, this.flailVelY);
     this.flailImpactPulse = Math.min(1, this.flailImpactPulse + 0.2);
   }
 
@@ -247,13 +248,13 @@ export class Weapon {
       this.flailHeadY += (player.y - this.flailHeadY) * Math.min(1, dt * 8);
       this.flailVelX *= Math.max(0, 1 - dt * 9);
       this.flailVelY *= Math.max(0, 1 - dt * 9);
-      this.flailHeadSpeed = Math.hypot(this.flailVelX, this.flailVelY);
+      this.flailHeadSpeed = hypot2(this.flailVelX, this.flailVelY);
       return;
     }
 
     const aimDx = pointer.x - player.x;
     const aimDy = pointer.y - player.y;
-    const aimLength = Math.hypot(aimDx, aimDy);
+    const aimLength = hypot2(aimDx, aimDy);
     const dirX = aimLength > 0.001 ? aimDx / aimLength : Math.cos(this.lastAimAngle);
     const dirY = aimLength > 0.001 ? aimDy / aimLength : Math.sin(this.lastAimAngle);
     this.lastAimAngle = Math.atan2(dirY, dirX);
@@ -270,7 +271,7 @@ export class Weapon {
 
     const tetherDx = this.flailHeadX - player.x;
     const tetherDy = this.flailHeadY - player.y;
-    const tetherLength = Math.hypot(tetherDx, tetherDy);
+    const tetherLength = hypot2(tetherDx, tetherDy);
     if (tetherLength > FLAIL_CONFIG.maxRange) {
       const nx = tetherDx / tetherLength;
       const ny = tetherDy / tetherLength;
@@ -287,13 +288,13 @@ export class Weapon {
     }
 
     const maxSpeed = FLAIL_CONFIG.maxImpactSpeed * 2.25;
-    const speed = Math.hypot(this.flailVelX, this.flailVelY);
+    const speed = hypot2(this.flailVelX, this.flailVelY);
     if (speed > maxSpeed) {
       const scale = maxSpeed / speed;
       this.flailVelX *= scale;
       this.flailVelY *= scale;
     }
-    this.flailHeadSpeed = Math.hypot(this.flailVelX, this.flailVelY);
+    this.flailHeadSpeed = hypot2(this.flailVelX, this.flailVelY);
 
     this.flailTrailTimer -= dt;
     if (this.flailTrailTimer <= 0) {

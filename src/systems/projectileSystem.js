@@ -1,12 +1,13 @@
 import { updateProjectile } from "../entities/projectile.js";
 import { getMountainCollisionNormal, igniteTreesAt, isProjectileBlockedByMountain } from "./worldSystem.js";
 import { playSfx } from "../audio/sfx.js";
+import { hypot2 } from "../core/mathUtil.js";
 
 function spawnProjectileObstacleImpact(gameState, projectile, collision) {
   playSfx("obstacleImpact", { volume: projectile.owner === "enemy" ? 0.6 : 1 });
   const hitX = collision?.x ?? projectile.position.x;
   const hitY = collision?.y ?? projectile.position.y;
-  const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
+  const speed = hypot2(projectile.velocity.x, projectile.velocity.y);
   const baseRadius = Math.max(2, projectile.radius * 0.8);
   const ringGrowth = Math.min(34, 14 + speed * 0.02);
 

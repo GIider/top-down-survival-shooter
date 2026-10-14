@@ -3,6 +3,7 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { moveEnemyWithTerrain, normalize, spawnFloatingText } from "./common.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
 const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
@@ -10,7 +11,7 @@ const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
 function explodeBomber(gameState, enemy, player, enemyIndex) {
   const radius = enemy.explosionRadius || BOMBER_CONFIG.explosionRadius;
   const damage = enemy.explosionDamage || BOMBER_CONFIG.explosionDamage;
-  const distance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+  const distance = hypot2(player.x - enemy.x, player.y - enemy.y);
   playSfx("explosion");
 
   if (distance <= radius) {
@@ -48,7 +49,7 @@ function explodeBomber(gameState, enemy, player, enemyIndex) {
 export function updateBomberBehavior(gameState, enemy, enemyIndex, player, world, dt, speedMultiplier) {
   const dx = player.x - enemy.x;
   const dy = player.y - enemy.y;
-  const distance = Math.hypot(dx, dy) || 1;
+  const distance = hypot2(dx, dy) || 1;
   const dir = normalize(dx, dy);
   const detonationDistance = player.radius + enemy.radius + (enemy.detonationRange || BOMBER_CONFIG.detonationRange);
 

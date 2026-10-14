@@ -4,6 +4,7 @@ import { renderHud } from "./render/hud.js";
 import { renderPauseOverlay, renderPerkLibraryOverlay, renderTitleScreen } from "./render/titleOverlays.js";
 import { PERK_HOOKS } from "../systems/perks/contracts.js";
 import { getVisibleObstacles } from "../systems/worldSystem.js";
+import { hypot2 } from "./mathUtil.js";
 
 const IS_DEBUG_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
 
@@ -171,6 +172,14 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
     };
   }
 
+  /** True when a world-space circle (plus margin) is outside the visible canvas. */
+  function isOffscreen(x, y, margin) {
+    const player = gameState.player;
+    return (
+      Math.abs(x - player.x) > canvas.width * 0.5 + margin || Math.abs(y - player.y) > canvas.height * 0.5 + margin
+    );
+  }
+
   function renderBackground() {
     const camera = getCameraOffset();
     ctx.fillStyle = CANVAS.background;
@@ -181,18 +190,16 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
     const offsetX = ((-camera.x % gridSize) + gridSize) % gridSize;
     const offsetY = ((-camera.y % gridSize) + gridSize) % gridSize;
 
+    ctx.beginPath();
     for (let x = offsetX; x < canvas.width; x += gridSize) {
-      ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvas.height);
-      ctx.stroke();
     }
     for (let y = offsetY; y < canvas.height; y += gridSize) {
-      ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(canvas.width, y);
-      ctx.stroke();
     }
+    ctx.stroke();
   }
 
   function renderIndicators() {
@@ -536,7 +543,7 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
         const warningProgress = 1 - Math.max(0, enemy.warningTimer / (enemy.warningDuration || 1.9));
         const dx = exitX - fromX;
         const dy = exitY - fromY;
-        const pathLen = Math.hypot(dx, dy) || 1;
+        const pathLen = hypot2(dx, dy) || 1;
         const dirX = dx / pathLen;
         const dirY = dy / pathLen;
         const perpX = -dirY;
@@ -631,6 +638,10 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
 
     gameState.enemies.forEach((enemy) => {
       if (enemy.isRespawning) {
+        return;
+      }
+
+      if (!enemy.isBoss && isOffscreen(enemy.x, enemy.y, enemy.radius + (enemy.explosionRadius || 78) + 24)) {
         return;
       }
 
@@ -983,7 +994,7 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
     const dx = aim.x - player.x;
     const dy = aim.y - player.y;
     const angle = Math.atan2(dy, dx);
-    const aimDistance = Math.hypot(dx, dy);
+    const aimDistance = hypot2(dx, dy);
 
     const weaponType = weapon.isGunSelected && weapon.isGunSelected() ? "gun" : weapon.isBowSelected && weapon.isBowSelected() ? "bow" : weapon.isFlailSelected && weapon.isFlailSelected() ? "flail" : "other";
     const laserContext = {
@@ -1078,6 +1089,9 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
 
   function renderFloatingTexts() {
     gameState.floatingTexts.forEach((entry) => {
+      if (isOffscreen(entry.x, entry.y, 120)) {
+        return;
+      }
       const progress = Math.max(0, Math.min(1, entry.elapsed / entry.duration));
       const alpha = 1 - progress;
       const startScale = 1.16;
@@ -1156,14 +1170,31 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
     });
   }
 
+  // "r, g, b" -> "rgb(r, g, b)", cached so particles don't build a string per frame;
+  // alpha goes through globalAlpha instead of the color string.
+  const effectColorCache = new Map();
+  function getEffectColor(color) {
+    let value = effectColorCache.get(color);
+    if (value === undefined) {
+      value = `rgb(${color})`;
+      effectColorCache.set(color, value);
+    }
+    return value;
+  }
+
   function renderEffects() {
+    ctx.save();
     gameState.effects.forEach((effect) => {
       const alpha = 1 - effect.elapsed / effect.duration;
-      const color = effect.color || "255, 220, 120";
+      const color = getEffectColor(effect.color || "255, 220, 120");
       if (effect.kind === "particle") {
+        if (isOffscreen(effect.x, effect.y, 40)) {
+          return;
+        }
         const growth = effect.growth ?? 0;
         const radius = Math.max(0.4, effect.radius + effect.elapsed * growth);
-        ctx.fillStyle = `rgba(${color}, ${Math.max(0, alpha)})`;
+        ctx.globalAlpha = Math.min(1, Math.max(0, alpha));
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
         ctx.fill();
@@ -1171,12 +1202,14 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
       }
 
       const growth = effect.growth ?? 18;
-      ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+      ctx.globalAlpha = Math.min(1, Math.max(0, alpha));
+      ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(effect.x, effect.y, effect.radius + effect.elapsed * growth, 0, Math.PI * 2);
       ctx.stroke();
     });
+    ctx.restore();
   }
 
   function renderPerkModal() {

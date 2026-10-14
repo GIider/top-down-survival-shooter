@@ -729,5 +729,13 @@ createLoop(
   update,
   () => {
     renderer.render();
-  }
+  },
+  isDebugMode
+    ? {
+        onFrame(updateTime, renderTime) {
+          fpsTracker.recordFrame(updateTime, renderTime);
+          gameState.perf = fpsTracker.getTimings();
+        },
+      }
+    : undefined
 );

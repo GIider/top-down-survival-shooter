@@ -15,9 +15,6 @@ https://giider.github.io/top-down-survival-shooter/
 - **Perk library (⚠ spoilers)**  
   https://giider.github.io/top-down-survival-shooter/perk-library.html
 
-- **Enemy showcase**  
-  https://giider.github.io/top-down-survival-shooter/showcase.html
-
 ---
 
 ## 🕹 Controls
@@ -70,6 +67,8 @@ Enable debug mode by appending the query parameter:
 **Example:**  
 https://giider.github.io/top-down-survival-shooter/game.html?debug=1
 
+Debug mode also shows an overlay with FPS, update/render CPU time per frame (rolling average / worst of the last 120 frames) and entity counts.
+
 ---
 
 ## 📁 Project Structure
@@ -106,7 +105,8 @@ npm run build
 * Launcher: `dist/index.html`
 * Game: `dist/game.html`
 * Perk library: `dist/perk-library.html`
-* Enemy showcase: `dist/showcase.html`
+* Sound lab: `dist/sound-showcase.html`
+* Balance lab: `dist/sim-lab.html`
 
 ---
 
@@ -137,6 +137,14 @@ Bots play seeded, deterministic headless runs through the real game systems.
   - Per-run metrics include `firstBossTime`, `firstBossKillTime`, `damageBySource` and `killsByType`.
 - Web UI: `dist/sim-lab.html` (Balance Lab) shows survival distributions, damage/kill breakdowns, perk lift, sweeps and a live "watch a bot" view. Query params: `?seeds=6&duration=120&bots=idle,average:gun&autorun=1`.
 - Code: `src/core/simStep.js` (shared sim frame), `src/sim/` (headless game, bots, runner), `src/sim-lab/` (page).
+
+## Performance testing
+
+- `npm run perf -- --duration 120` times the headless update loop (no rendering) for a `normal` and a `stress` scenario and prints avg/p95/p99/max frame ms, per-stage ms, entity peaks and heap growth.
+  - `--out before.json` saves a result, `--compare before.json` prints deltas against it; `--scenario normal|stress`, `--bot`, `--seed` select the run.
+  - Stages come from the optional `ctx.profiler` hook in `src/core/simStep.js`; it costs nothing when unset.
+- Render cost needs a browser: open the game with `?debug=1` and read the `rnd` / `upd` lines.
+- Allocation profile: `node --heap-prof scripts/perf.mjs` (run once per scenario), then load the `.heapprofile` in Chrome DevTools → Memory.
 
 ### Balance targets and current state
 

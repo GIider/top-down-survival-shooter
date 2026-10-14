@@ -1,6 +1,6 @@
 import { BALANCE, CANVAS, GAME_CONFIG } from "../core/constants.js";
 import { createEnemy } from "../entities/enemy.js";
-import { resolvePositionAgainstMountains } from "./worldSystem.js";
+import { resolvePositionAgainstMountainsShared } from "./worldSystem.js";
 import { updateAssaultShooterBehavior } from "./enemies/assaultShooter.js";
 import { updateBomberBehavior } from "./enemies/bomber.js";
 import { updateChaserSlimeBehavior } from "./enemies/chaserSlime.js";
@@ -9,6 +9,7 @@ import { updateShooterBehavior } from "./enemies/shooter.js";
 import { updateShotgunShooterBehavior } from "./enemies/shotgunShooter.js";
 import { getSpawnModifier, updateBoss } from "./bosses/bossSystem.js";
 import { computeFlyingBomberPath, updateFlyingBomberBehavior } from "./enemies/flyingBomber.js";
+import { hypot2 } from "../core/mathUtil.js";
 
 const SPAWN_CONFIG = GAME_CONFIG.enemies.spawn;
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
@@ -30,7 +31,7 @@ function randomSpawnPosition(player, playerVelocity = null) {
 
   let centerX = player.x;
   let centerY = player.y;
-  const speed = playerVelocity ? Math.hypot(playerVelocity.x, playerVelocity.y) : 0;
+  const speed = playerVelocity ? hypot2(playerVelocity.x, playerVelocity.y) : 0;
   if (speed > SPAWN_CONFIG.movementLookAhead.speedThreshold) {
     const nx = playerVelocity.x / speed;
     const ny = playerVelocity.y / speed;
@@ -84,10 +85,36 @@ function ensureEnemyAiState(gameState) {
   return gameState.systems.enemyAi;
 }
 
+// Crowding runs on flat typed arrays: enemy objects come in many shapes, so touching their
+// fields in the O(n^2) loop was megamorphic and boxed a heap number per store.
+let crowdX = new Float64Array(128);
+let crowdY = new Float64Array(128);
+let crowdR = new Float64Array(128);
+let crowdActive = new Uint8Array(128);
+
 function resolveEnemyCrowding(gameState) {
   const enemies = gameState.enemies;
   if (!enemies || enemies.length < 2) {
     return;
+  }
+
+  const count = enemies.length;
+  if (crowdX.length < count) {
+    const size = Math.max(count, crowdX.length * 2);
+    crowdX = new Float64Array(size);
+    crowdY = new Float64Array(size);
+    crowdR = new Float64Array(size);
+    crowdActive = new Uint8Array(size);
+  }
+  for (let i = 0; i < count; i += 1) {
+    const enemy = enemies[i];
+    const active = !!enemy && !enemy.isRespawning && !enemy.skipRecycle;
+    crowdActive[i] = active ? 1 : 0;
+    if (active) {
+      crowdX[i] = enemy.x;
+      crowdY[i] = enemy.y;
+      crowdR[i] = enemy.radius;
+    }
   }
 
   const world = gameState.systems.world;
@@ -96,21 +123,19 @@ function resolveEnemyCrowding(gameState) {
   const paddingFactor = Math.max(0.6, Math.min(1.2, AI_CONFIG.enemySeparationPaddingFactor || 0.94));
 
   for (let iteration = 0; iteration < iterations; iteration += 1) {
-    for (let i = 0; i < enemies.length; i += 1) {
-      const a = enemies[i];
-      if (!a || a.isRespawning || a.skipRecycle) {
+    for (let i = 0; i < count; i += 1) {
+      if (crowdActive[i] === 0) {
         continue;
       }
 
-      for (let j = i + 1; j < enemies.length; j += 1) {
-        const b = enemies[j];
-        if (!b || b.isRespawning || b.skipRecycle) {
+      for (let j = i + 1; j < count; j += 1) {
+        if (crowdActive[j] === 0) {
           continue;
         }
 
-        const minDistance = (a.radius + b.radius) * paddingFactor;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
+        const minDistance = (crowdR[i] + crowdR[j]) * paddingFactor;
+        const dx = crowdX[j] - crowdX[i];
+        const dy = crowdY[j] - crowdY[i];
         const distSq = dx * dx + dy * dy;
         if (distSq >= minDistance * minDistance) {
           continue;
@@ -136,18 +161,25 @@ function resolveEnemyCrowding(gameState) {
         }
 
         const push = overlap * 0.5 * strength;
-        a.x -= nx * push;
-        a.y -= ny * push;
-        b.x += nx * push;
-        b.y += ny * push;
+        crowdX[i] -= nx * push;
+        crowdY[i] -= ny * push;
+        crowdX[j] += nx * push;
+        crowdY[j] += ny * push;
 
-        const resolvedA = resolvePositionAgainstMountains(world, a.x, a.y, a.radius);
-        a.x = resolvedA.x;
-        a.y = resolvedA.y;
-        const resolvedB = resolvePositionAgainstMountains(world, b.x, b.y, b.radius);
-        b.x = resolvedB.x;
-        b.y = resolvedB.y;
+        const resolvedA = resolvePositionAgainstMountainsShared(world, crowdX[i], crowdY[i], crowdR[i]);
+        crowdX[i] = resolvedA.x;
+        crowdY[i] = resolvedA.y;
+        const resolvedB = resolvePositionAgainstMountainsShared(world, crowdX[j], crowdY[j], crowdR[j]);
+        crowdX[j] = resolvedB.x;
+        crowdY[j] = resolvedB.y;
       }
+    }
+  }
+
+  for (let i = 0; i < count; i += 1) {
+    if (crowdActive[i] !== 0) {
+      enemies[i].x = crowdX[i];
+      enemies[i].y = crowdY[i];
     }
   }
 }
@@ -224,7 +256,7 @@ export function updateEnemySpawning(gameState, dt, options = {}) {
     }
     const enemy = createEnemy(picked.type, spawnX, spawnY, difficulty, spawnOptions);
     if (!enemy.skipRecycle) {
-      const resolved = resolvePositionAgainstMountains(world, enemy.x, enemy.y, enemy.radius);
+      const resolved = resolvePositionAgainstMountainsShared(world, enemy.x, enemy.y, enemy.radius);
       enemy.x = resolved.x;
       enemy.y = resolved.y;
     }
@@ -243,9 +275,14 @@ export function updateEnemies(gameState, dt) {
   enemyAiState.playerVelocity.y += (measuredVelY - enemyAiState.playerVelocity.y) * 0.35;
   enemyAiState.lastPlayerPos.x = player.x;
   enemyAiState.lastPlayerPos.y = player.y;
-  const reservedMortarTargets = gameState.indicators
-    .filter((indicator) => indicator.type === "circle" && indicator.source === "mortar")
-    .map((indicator) => ({ x: indicator.position.x, y: indicator.position.y }));
+  const reservedMortarTargets = [];
+  const indicators = gameState.indicators;
+  for (let i = 0; i < indicators.length; i += 1) {
+    const indicator = indicators[i];
+    if (indicator.type === "circle" && indicator.source === "mortar") {
+      reservedMortarTargets.push({ x: indicator.position.x, y: indicator.position.y });
+    }
+  }
 
   for (let index = gameState.enemies.length - 1; index >= 0; index -= 1) {
     const enemy = gameState.enemies[index];
@@ -279,7 +316,7 @@ export function updateEnemies(gameState, dt) {
       continue;
     }
 
-    const distanceToPlayer = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+    const distanceToPlayer = hypot2(player.x - enemy.x, player.y - enemy.y);
 
     if (!enemy.isRespawning && (distanceToPlayer > Math.max(CANVAS.width, CANVAS.height) * SPAWN_CONFIG.recycleDistanceMultiplier || enemy.offscreenTime >= OFFSCREEN_RESPAWN_AFTER)) {
       enemy.isRespawning = true;
@@ -290,7 +327,7 @@ export function updateEnemies(gameState, dt) {
       enemy.respawnTimer -= dt;
       if (enemy.respawnTimer <= 0) {
         respawnNearPlayer(enemy, player, enemyAiState.playerVelocity);
-        const resolved = resolvePositionAgainstMountains(world, enemy.x, enemy.y, enemy.radius);
+        const resolved = resolvePositionAgainstMountainsShared(world, enemy.x, enemy.y, enemy.radius);
         enemy.x = resolved.x;
         enemy.y = resolved.y;
       }

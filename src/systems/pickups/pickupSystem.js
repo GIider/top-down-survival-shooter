@@ -2,6 +2,7 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { PICKUP_DEFS, PICKUP_POOL } from "./pickupCatalog.js";
 import { PERK_HOOKS } from "../perks/contracts.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const PICKUP_SFX = {
   [PICKUP_DEFS.health.type]: "pickupHealth",
@@ -77,7 +78,7 @@ function applyPickupEffect(services, pickup) {
   }
 
   if (pickup.type === PICKUP_DEFS.nuke.type) {
-    const maxRadius = Math.hypot(services.canvas.width, services.canvas.height) * 0.9;
+    const maxRadius = hypot2(services.canvas.width, services.canvas.height) * 0.9;
     gameState.nukeWaves.push({
       x: player.x,
       y: player.y,
@@ -162,7 +163,7 @@ function updateNukeWaves(gameState, dt) {
         continue;
       }
 
-      const distance = Math.hypot(enemy.x - wave.x, enemy.y - wave.y);
+      const distance = hypot2(enemy.x - wave.x, enemy.y - wave.y);
       if (distance > wave.radius + enemy.radius) {
         continue;
       }
@@ -198,7 +199,7 @@ function updateNukeWaves(gameState, dt) {
         continue;
       }
 
-      const distance = Math.hypot(projectile.position.x - wave.x, projectile.position.y - wave.y);
+      const distance = hypot2(projectile.position.x - wave.x, projectile.position.y - wave.y);
       if (distance > wave.radius + (projectile.radius || 0)) {
         continue;
       }
@@ -219,7 +220,7 @@ function updateNukeWaves(gameState, dt) {
       if (indicator.source !== "mortar") {
         return true;
       }
-      const distance = Math.hypot(indicator.position.x - wave.x, indicator.position.y - wave.y);
+      const distance = hypot2(indicator.position.x - wave.x, indicator.position.y - wave.y);
       return distance > wave.radius + (indicator.size?.radius || 0);
     });
 
@@ -300,7 +301,7 @@ export function updatePickups(services, dt) {
     if (finalizedMagnetContext.enabled) {
       const dxMagnet = player.x - drop.position.x;
       const dyMagnet = player.y - drop.position.y;
-      const distMagnet = Math.hypot(dxMagnet, dyMagnet) || 1;
+      const distMagnet = hypot2(dxMagnet, dyMagnet) || 1;
       if (distMagnet <= 280) {
         const magnetSpeed = 36;
         drop.position.x += (dxMagnet / distMagnet) * magnetSpeed * dt;
@@ -310,7 +311,7 @@ export function updatePickups(services, dt) {
 
     const dx = drop.position.x - player.x;
     const dy = drop.position.y - player.y;
-    if (Math.hypot(dx, dy) <= pickupRadius + drop.radius) {
+    if (hypot2(dx, dy) <= pickupRadius + drop.radius) {
       applyPickupEffect(services, drop);
       dropList.splice(index, 1);
     }

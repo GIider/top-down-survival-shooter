@@ -4,6 +4,7 @@ import { igniteTreesAt, resolvePositionAgainstMountains } from "../worldSystem.j
 import { getMeleeConfig } from "../weapons/index.js";
 import { createDamageContext, PERK_HOOKS } from "../perks/contracts.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const BLINK_CONFIG = GAME_CONFIG.skills.blink;
 const MELEE_CONFIG = getMeleeConfig();
@@ -17,12 +18,12 @@ function distancePointToSegment(px, py, ax, ay, bx, by) {
   const apy = py - ay;
   const abLenSq = abx * abx + aby * aby;
   if (abLenSq <= 0.000001) {
-    return Math.hypot(px - ax, py - ay);
+    return hypot2(px - ax, py - ay);
   }
   const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / abLenSq));
   const cx = ax + abx * t;
   const cy = ay + aby * t;
-  return Math.hypot(px - cx, py - cy);
+  return hypot2(px - cx, py - cy);
 }
 
 function applyBlinkSwordStrike(gameState, weaponSystem, fromX, fromY, toX, toY, perkEngine = null) {
@@ -103,7 +104,7 @@ function applyBlinkExplosion(gameState, x, y) {
     if (enemy.isRespawning) {
       continue;
     }
-    const distance = Math.hypot(enemy.x - x, enemy.y - y);
+    const distance = hypot2(enemy.x - x, enemy.y - y);
     if (distance > radius + enemy.radius) {
       continue;
     }
@@ -153,7 +154,7 @@ export function tryBlink(services, worldPointer) {
 
   const dx = worldPointer.x - player.x;
   const dy = worldPointer.y - player.y;
-  const length = Math.hypot(dx, dy);
+  const length = hypot2(dx, dy);
   if (length < 0.001) {
     return false;
   }
@@ -288,7 +289,7 @@ export function updateBlinkPreview(services, worldPointer, blinkCanceledDuringHo
 
   const dx = worldPointer.x - player.x;
   const dy = worldPointer.y - player.y;
-  const length = Math.hypot(dx, dy);
+  const length = hypot2(dx, dy);
   if (length < 0.001) {
     player.blinkPreview.active = false;
     return;

@@ -3,6 +3,7 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { moveEnemyWithTerrain, normalize, spawnFloatingText } from "./common.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const AI_CONFIG = GAME_CONFIG.enemies.ai;
 const ENEMY_CONFIG = GAME_CONFIG.enemies.archetypes;
@@ -22,7 +23,7 @@ function chooseMortarTarget(player, reservedTargets) {
     let closest = Infinity;
     for (let index = 0; index < reservedTargets.length; index += 1) {
       const target = reservedTargets[index];
-      const distance = Math.hypot(candidate.x - target.x, candidate.y - target.y);
+      const distance = hypot2(candidate.x - target.x, candidate.y - target.y);
       if (distance < closest) {
         closest = distance;
       }
@@ -44,7 +45,7 @@ function chooseMortarTarget(player, reservedTargets) {
 export function updateMortarBehavior(gameState, enemy, player, world, dt, speedMultiplier, reservedMortarTargets) {
   const dx = player.x - enemy.x;
   const dy = player.y - enemy.y;
-  const distance = Math.hypot(dx, dy) || 1;
+  const distance = hypot2(dx, dy) || 1;
   const dir = normalize(dx, dy);
   const tooClose = distance < enemy.preferredDistance - 36;
   const tooFar = distance > enemy.preferredDistance + 36;
@@ -69,7 +70,7 @@ export function updateMortarBehavior(gameState, enemy, player, world, dt, speedM
     source: "mortar",
     onTrigger() {
       playSfx("explosion", { volume: 0.8 });
-      const hit = Math.hypot(player.x - target.x, player.y - target.y) <= dangerRadius;
+      const hit = hypot2(player.x - target.x, player.y - target.y) <= dangerRadius;
       if (hit) {
         const damage = ENEMY_CONFIG.mortar.impactDamage;
         player.hp -= damage;

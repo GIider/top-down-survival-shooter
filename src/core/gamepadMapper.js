@@ -1,3 +1,4 @@
+import { hypot2 } from "./mathUtil.js";
 // Pure gamepad -> game-intent mapping (standard mapping layout). No DOM access.
 
 export const GAMEPAD_BUTTONS = {
@@ -27,7 +28,7 @@ export const DEFAULT_GAMEPAD_CONFIG = {
 };
 
 export function applyRadialDeadzone(x, y, deadzone) {
-  const magnitude = Math.hypot(x, y);
+  const magnitude = hypot2(x, y);
   if (magnitude <= deadzone) {
     return { x: 0, y: 0, magnitude: 0 };
   }
@@ -95,7 +96,7 @@ export function createGamepadMapper(config = {}) {
     const aimRaw = applyRadialDeadzone(axes[2] ?? 0, axes[3] ?? 0, cfg.aimDeadzone);
     let aim = null;
     if (aimRaw.magnitude > 0) {
-      const len = Math.hypot(aimRaw.x, aimRaw.y);
+      const len = hypot2(aimRaw.x, aimRaw.y);
       aim = { x: aimRaw.x / len, y: aimRaw.y / len, magnitude: aimRaw.magnitude };
       lastAim = { x: aim.x, y: aim.y };
     }

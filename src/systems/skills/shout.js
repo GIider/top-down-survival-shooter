@@ -2,19 +2,20 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { getPlayerDamageMultiplier } from "../../entities/player.js";
 import { PERK_HOOKS } from "../perks/contracts.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const SHOUT_CONFIG = GAME_CONFIG.skills.shout;
 
 function reflectProjectileByShout(projectile, origin, player) {
-  const speed = Math.max(SHOUT_CONFIG.reflectMinSpeed, Math.hypot(projectile.velocity.x, projectile.velocity.y));
+  const speed = Math.max(SHOUT_CONFIG.reflectMinSpeed, hypot2(projectile.velocity.x, projectile.velocity.y));
   const dx = projectile.position.x - origin.x;
   const dy = projectile.position.y - origin.y;
-  const distance = Math.hypot(dx, dy);
+  const distance = hypot2(dx, dy);
   let nx;
   let ny;
 
   if (distance < 0.0001) {
-    const vLen = Math.hypot(projectile.velocity.x, projectile.velocity.y) || 1;
+    const vLen = hypot2(projectile.velocity.x, projectile.velocity.y) || 1;
     nx = projectile.velocity.x / vLen;
     ny = projectile.velocity.y / vLen;
   } else {
@@ -114,7 +115,7 @@ export function updateShoutWaves(services, dt) {
           continue;
         }
 
-        const distance = Math.hypot(projectile.position.x - wave.x, projectile.position.y - wave.y);
+        const distance = hypot2(projectile.position.x - wave.x, projectile.position.y - wave.y);
         if (distance <= radius + wave.thickness * 0.5) {
           wave.reflectedProjectiles.add(projectile);
           reflectProjectileByShout(projectile, wave, player);
@@ -137,7 +138,7 @@ export function updateShoutWaves(services, dt) {
         continue;
       }
 
-      const distance = Math.hypot(enemy.x - wave.x, enemy.y - wave.y);
+      const distance = hypot2(enemy.x - wave.x, enemy.y - wave.y);
       if (distance <= radius + enemy.radius + wave.thickness * 0.25) {
         wave.stunnedEnemies.add(enemy);
         if (!enemy.immuneToCC) {

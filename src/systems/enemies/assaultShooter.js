@@ -2,13 +2,14 @@ import { GAME_CONFIG } from "../../core/constants.js";
 import { createProjectile } from "../../entities/projectile.js";
 import { moveEnemyWithTerrain, normalize, pickShooterAimPoint } from "./common.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const ENEMY_CONFIG = GAME_CONFIG.enemies.archetypes;
 
 export function updateAssaultShooterBehavior(gameState, enemy, player, world, dt, speedMultiplier, playerVelocity) {
   const dx = player.x - enemy.x;
   const dy = player.y - enemy.y;
-  const distance = Math.hypot(dx, dy) || 1;
+  const distance = hypot2(dx, dy) || 1;
   const dir = normalize(dx, dy);
   const tooClose = distance < enemy.preferredDistance - 26;
   const tooFar = distance > enemy.preferredDistance + 26;

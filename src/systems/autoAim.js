@@ -1,3 +1,4 @@
+import { hypot2 } from "../core/mathUtil.js";
 // Controller auto-aim: pulls the aim direction toward the best enemy near the
 // stick direction. `snap` (0..1) scales cone width, pull strength and turn speed.
 
@@ -43,7 +44,7 @@ export function createAutoAim(config = {}) {
       if (!enemy || !(enemy.hp > 0)) continue;
       const dx = enemy.x - origin.x;
       const dy = enemy.y - origin.y;
-      const dist = Math.hypot(dx, dy);
+      const dist = hypot2(dx, dy);
       if (dist > params.range || dist < 1) continue;
       const diff = Math.abs(normalizeAngle(Math.atan2(dy, dx) - refAngle));
       // Widen the cone for large/near enemies so they stay easy to catch.

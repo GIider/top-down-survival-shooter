@@ -3,10 +3,11 @@ import { BALANCE, GAME_CONFIG } from "../core/constants.js";
 import { getPlayerDamageMultiplier, scaleDamageAgainstEnemy } from "../entities/player.js";
 import { createEnemy } from "../entities/enemy.js";
 import { maybeSpawnPickupOnEnemyDeath } from "./pickups/index.js";
-import { getTreeEffectsAt, igniteTreesAt, resolvePositionAgainstMountains } from "./worldSystem.js";
+import { getTreeEffectsAt, igniteTreesAt, resolvePositionAgainstMountainsShared } from "./worldSystem.js";
 import { createDamageContext, PERK_HOOKS } from "./perks/contracts.js";
 import { playSfx } from "../audio/sfx.js";
 import { onBossKilled } from "./bosses/bossSystem.js";
+import { hypot2 } from "../core/mathUtil.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 const BOMBER_CONFIG = GAME_CONFIG.enemies.archetypes.bomber;
@@ -73,7 +74,7 @@ function normalizeAngle(angle) {
 function isEnemyInsideSwing(enemy, swing) {
   const dx = enemy.x - swing.x;
   const dy = enemy.y - swing.y;
-  const distance = Math.hypot(dx, dy);
+  const distance = hypot2(dx, dy);
   if (distance > swing.range + enemy.radius) {
     return false;
   }
@@ -89,7 +90,7 @@ function isEnemyInsideSwing(enemy, swing) {
 function isCircleInsideSwing(x, y, radius, swing) {
   const dx = x - swing.x;
   const dy = y - swing.y;
-  const distance = Math.hypot(dx, dy);
+  const distance = hypot2(dx, dy);
   if (distance > swing.range + radius) {
     return false;
   }
@@ -141,7 +142,7 @@ function applyEnemyKnockback(enemy, nx, ny, knockbackPerSecond, dt, world) {
 
   enemy.x += nx * pushDistance;
   enemy.y += ny * pushDistance;
-  const resolved = resolvePositionAgainstMountains(world, enemy.x, enemy.y, enemy.radius);
+  const resolved = resolvePositionAgainstMountainsShared(world, enemy.x, enemy.y, enemy.radius);
   enemy.x = resolved.x;
   enemy.y = resolved.y;
 }
@@ -261,7 +262,7 @@ function killEnemy(gameState, enemy, enemyIndex, damageSource, player) {
     const explosionRadius = enemy.explosionRadius || BOMBER_CONFIG.explosionRadius;
     const explosionDamage = enemy.explosionDamage || BOMBER_CONFIG.explosionDamage;
     const deathEffects = BOMBER_CONFIG.deathEffects;
-    const playerDistance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+    const playerDistance = hypot2(player.x - enemy.x, player.y - enemy.y);
     if (playerDistance <= explosionRadius) {
       player.hp -= explosionDamage;
       recordPlayerDamage(gameState, "bomber", explosionDamage);
@@ -353,7 +354,7 @@ function detonateFireball(gameState, fireball, playerProjectileIndex = null) {
       continue;
     }
 
-    const distance = Math.hypot(enemy.x - fireball.x, enemy.y - fireball.y);
+    const distance = hypot2(enemy.x - fireball.x, enemy.y - fireball.y);
     if (distance > fireball.splashRadius + enemy.radius) {
       continue;
     }
@@ -442,7 +443,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
 
           const dx = projectile.position.x - player.x;
           const dy = projectile.position.y - player.y;
-          const distance = Math.hypot(dx, dy) || 1;
+          const distance = hypot2(dx, dy) || 1;
           const nx = dx / distance;
           const ny = dy / distance;
           reflectProjectile(projectile, nx, ny, 1.05);
@@ -529,7 +530,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         let registeredHit = false;
         const headDx = enemy.x - flail.x;
         const headDy = enemy.y - flail.y;
-        const headDistance = Math.hypot(headDx, headDy) || 0.0001;
+        const headDistance = hypot2(headDx, headDy) || 0.0001;
         const headOverlap = headDistance <= enemy.radius + flail.radius;
 
         if (headOverlap && weapon.canFlailHitEnemy(enemy, "head")) {
@@ -548,7 +549,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           });
 
           const knockback = weapon.getFlailKnockback(impactSpeed, 1);
-          const velLen = Math.hypot(flail.velocity.x, flail.velocity.y);
+          const velLen = hypot2(flail.velocity.x, flail.velocity.y);
           const nx = velLen > 0.001 ? flail.velocity.x / velLen : headDx / headDistance;
           const ny = velLen > 0.001 ? flail.velocity.y / velLen : headDy / headDistance;
           applyEnemyKnockback(enemy, nx, ny, knockback, dt, world);
@@ -698,7 +699,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     if (projectile.owner === "enemy" && flailSnapshot) {
       const dxFlail = projectile.position.x - flailSnapshot.x;
       const dyFlail = projectile.position.y - flailSnapshot.y;
-      if (Math.hypot(dxFlail, dyFlail) <= projectile.radius + flailSnapshot.radius) {
+      if (hypot2(dxFlail, dyFlail) <= projectile.radius + flailSnapshot.radius) {
         gameState.effects.push({
           x: projectile.position.x,
           y: projectile.position.y,
@@ -722,7 +723,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         const fireball = gameState.fireballs[f];
         const dxFireball = fireball.x - projectile.position.x;
         const dyFireball = fireball.y - projectile.position.y;
-        if (Math.hypot(dxFireball, dyFireball) <= fireball.radius + projectile.radius) {
+        if (hypot2(dxFireball, dyFireball) <= fireball.radius + projectile.radius) {
           detonateFireball(gameState, fireball, p);
           gameState.fireballs.splice(f, 1);
           break;
@@ -752,7 +753,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
 
         const dx = enemy.x - projectile.position.x;
         const dy = enemy.y - projectile.position.y;
-        const overlap = Math.hypot(dx, dy) <= enemy.radius + projectile.radius;
+        const overlap = hypot2(dx, dy) <= enemy.radius + projectile.radius;
 
         if (!overlap) {
           continue;
@@ -820,7 +821,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             const aoeEnemy = gameState.enemies[ae];
             const adx = aoeEnemy.x - enemy.x;
             const ady = aoeEnemy.y - enemy.y;
-            if (Math.hypot(adx, ady) <= player.aoeRadius) {
+            if (hypot2(adx, ady) <= player.aoeRadius) {
               aoeEnemy.hp -= computeDamageWithPerks(gameState, player, aoeEnemy, projectileDamage * 0.25, {
                 sourceType: "aoeSplash",
                 tags: ["aoe", "projectile"],
@@ -837,7 +838,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             }
             const cdx = chainEnemy.x - enemy.x;
             const cdy = chainEnemy.y - enemy.y;
-            if (Math.hypot(cdx, cdy) <= 120) {
+            if (hypot2(cdx, cdy) <= 120) {
               chainEnemy.hp -= computeDamageWithPerks(gameState, player, chainEnemy, projectileDamage * 0.45, {
                 sourceType: "chainArc",
                 tags: ["chain", "projectile"],
@@ -864,7 +865,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
             if (candidate.hp <= 0) {
               continue;
             }
-            const distance = Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y);
+            const distance = hypot2(candidate.x - enemy.x, candidate.y - enemy.y);
             if (distance < closestDistance) {
               closestDistance = distance;
               closest = candidate;
@@ -874,8 +875,8 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
           if (closest) {
             const dxRicochet = closest.x - enemy.x;
             const dyRicochet = closest.y - enemy.y;
-            const len = Math.hypot(dxRicochet, dyRicochet) || 1;
-            const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y) || 1;
+            const len = hypot2(dxRicochet, dyRicochet) || 1;
+            const speed = hypot2(projectile.velocity.x, projectile.velocity.y) || 1;
             projectile.velocity.x = (dxRicochet / len) * speed;
             projectile.velocity.y = (dyRicochet / len) * speed;
             projectile.position.x = enemy.x + (dxRicochet / len) * (enemy.radius + projectile.radius + 2);
@@ -889,7 +890,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
         if (projectile.bounceRemaining > 0) {
           const dxBounce = projectile.position.x - enemy.x;
           const dyBounce = projectile.position.y - enemy.y;
-          const bounceDistance = Math.hypot(dxBounce, dyBounce) || 1;
+          const bounceDistance = hypot2(dxBounce, dyBounce) || 1;
           const nxBounce = dxBounce / bounceDistance;
           const nyBounce = dyBounce / bounceDistance;
           reflectProjectile(projectile, nxBounce, nyBounce, 1.03);
@@ -918,7 +919,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     if (projectile.owner === "enemy") {
       const dx = player.x - projectile.position.x;
       const dy = player.y - projectile.position.y;
-      if (Math.hypot(dx, dy) <= player.radius + projectile.radius) {
+      if (hypot2(dx, dy) <= player.radius + projectile.radius) {
         player.hp -= projectile.damage;
         recordPlayerDamage(gameState, projectile.source || "projectile", projectile.damage);
         spawnFloatingText(
@@ -956,7 +957,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
 
       const dx = enemy.x - fireball.x;
       const dy = enemy.y - fireball.y;
-      if (Math.hypot(dx, dy) > enemy.radius + fireball.radius) {
+      if (hypot2(dx, dy) > enemy.radius + fireball.radius) {
         continue;
       }
 
@@ -1014,7 +1015,7 @@ export function updateCollisionSystem(gameState, dt = 0.016) {
     }
     const dx = enemy.x - player.x;
     const dy = enemy.y - player.y;
-    if (Math.hypot(dx, dy) <= enemy.radius + player.radius) {
+    if (hypot2(dx, dy) <= enemy.radius + player.radius) {
       accumulatedContactDamage += enemy.contactDamage * dt;
       contactDamageByType[enemy.type] = (contactDamageByType[enemy.type] || 0) + enemy.contactDamage * dt;
     }

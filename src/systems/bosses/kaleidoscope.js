@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from "../../core/constants.js";
 import { addBossTimer } from "./bossState.js";
 import { closingCage, gapRing, lanceBurst, ringPoints, spiralPoints, spiralStorm, strikeField, sweepBeam } from "./bossPatterns.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const CONFIG = GAME_CONFIG.bosses.kaleidoscope;
 const QUARTER = Math.PI / 2;
@@ -98,7 +99,7 @@ function moveBoss(boss, player, dt, phase) {
   const scratch = boss.scratch;
   const dx = player.x - boss.x;
   const dy = player.y - boss.y;
-  const distance = Math.hypot(dx, dy) || 1;
+  const distance = hypot2(dx, dy) || 1;
   const nx = dx / distance;
   const ny = dy / distance;
 

@@ -2,7 +2,7 @@ import { SOUND_CATALOG } from "./soundCatalog.js";
 import { ZZFX_SAMPLE_RATE, buildSamples, normalizeParams } from "./zzfx.js";
 
 export const SFX_SETTINGS_KEY = "tdss.sfx.settings";
-// Working copy written by the Sound Showcase page; only read by the game when `?sfxLab=1`.
+// Working copy written by the Sound Lab page; only read by the game when `?sfxLab=1`.
 export const SFX_OVERRIDES_KEY = "tdss.sfx.overrides";
 
 // Number of discrete volume steps exposed by the pause-menu slider (0 = silent, N = full).
@@ -245,7 +245,7 @@ function createDefaultEngine() {
     now: () => performance.now(),
   });
 
-  // `?sfxLab=1` plays the game with the tweaks saved by the Sound Showcase page.
+  // `?sfxLab=1` plays the game with the tweaks saved by the Sound Lab page.
   try {
     if (new URLSearchParams(window.location.search).get("sfxLab") === "1") {
       const overrides = readStorageJson(storage, SFX_OVERRIDES_KEY);

@@ -3,6 +3,7 @@ import { CANVAS, GAME_CONFIG } from "../../core/constants.js";
 import { spawnIndicator } from "../indicatorSystem.js";
 import { spawnFloatingText } from "./common.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const FLY_CONFIG = GAME_CONFIG.enemies.archetypes.flyingBomber;
 
@@ -36,11 +37,11 @@ export function computeFlyingBomberPath(player, playerVelocity) {
 
   const dxRaw = targetX - fromX;
   const dyRaw = targetY - fromY;
-  const lenRaw = Math.hypot(dxRaw, dyRaw) || 1;
+  const lenRaw = hypot2(dxRaw, dyRaw) || 1;
   const dirX = dxRaw / lenRaw;
   const dirY = dyRaw / lenRaw;
 
-  const diagonal = Math.hypot(CANVAS.width, CANVAS.height);
+  const diagonal = hypot2(CANVAS.width, CANVAS.height);
   const totalLen = lenRaw + diagonal + margin;
   const exitX = fromX + dirX * totalLen;
   const exitY = fromY + dirY * totalLen;
@@ -77,7 +78,7 @@ export function updateFlyingBomberBehavior(gameState, enemy, player, dt) {
     const halfH = CANVAS.height * 0.5;
     const offX = enemy.x < player.x - halfW - 120 || enemy.x > player.x + halfW + 120;
     const offY = enemy.y < player.y - halfH - 120 || enemy.y > player.y + halfH + 120;
-    const fromLen = Math.hypot(enemy.flyExitX - enemy.flyFromX, enemy.flyExitY - enemy.flyFromY);
+    const fromLen = hypot2(enemy.flyExitX - enemy.flyFromX, enemy.flyExitY - enemy.flyFromY);
     if ((offX || offY) && enemy.distTraveled >= fromLen * 0.4) {
       enemy.isDone = true;
     }
@@ -98,7 +99,7 @@ function dropBomb(gameState, enemy, player) {
     source: "flyingBomber",
     onTrigger() {
       playSfx("explosion", { volume: 0.8 });
-      const dist = Math.hypot(player.x - bx, player.y - by);
+      const dist = hypot2(player.x - bx, player.y - by);
       if (dist <= radius) {
         player.hp -= damage;
         recordPlayerDamage(gameState, "flyingBomber", damage);

@@ -1,7 +1,8 @@
+import { hypot2 } from "../core/mathUtil.js";
 export function updatePlayerMovement(player, movement, dt, options = {}) {
-  const magnitude = Math.hypot(movement.x, movement.y) || 1;
+  const magnitude = hypot2(movement.x, movement.y) || 1;
   // Analog sticks may be below full tilt; keyboard diagonals (magnitude > 1) still normalize to 1.
-  const strength = Math.min(1, Math.hypot(movement.x, movement.y));
+  const strength = Math.min(1, hypot2(movement.x, movement.y));
   const nx = (movement.x / magnitude) * strength;
   const ny = (movement.y / magnitude) * strength;
   const terrainMultiplier = options.terrainMultiplier ?? 1;

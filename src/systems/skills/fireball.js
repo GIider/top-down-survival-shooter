@@ -3,6 +3,7 @@ import { getPlayerDamageMultiplier } from "../../entities/player.js";
 import { igniteTreesAt, isProjectileBlockedByMountain } from "../worldSystem.js";
 import { PERK_HOOKS } from "../perks/contracts.js";
 import { playSfx } from "../../audio/sfx.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 const FIREBALL_CONFIG = GAME_CONFIG.skills.fireball;
 
@@ -25,7 +26,7 @@ export function tryFireball(services, worldPointer) {
 
   const dx = worldPointer.x - player.x;
   const dy = worldPointer.y - player.y;
-  const length = Math.hypot(dx, dy);
+  const length = hypot2(dx, dy);
   if (length < 0.001) {
     return false;
   }
@@ -111,7 +112,7 @@ export function updateLingeringZones(services, dt) {
       if (enemy.isRespawning) {
         continue;
       }
-      const distance = Math.hypot(enemy.x - zone.x, enemy.y - zone.y);
+      const distance = hypot2(enemy.x - zone.x, enemy.y - zone.y);
       if (distance > zone.radius + enemy.radius) {
         continue;
       }

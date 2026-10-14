@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from "../core/constants.js";
+import { hypot2 } from "../core/mathUtil.js";
 
 const WORLD_CONFIG = GAME_CONFIG.world;
 const CHUNK_SIZE = WORLD_CONFIG.chunkSize;
@@ -23,8 +24,9 @@ function makeRng(seed) {
   };
 }
 
+// Numeric key (no string allocation per lookup); chunk coordinates stay far inside +-32768.
 function chunkKey(cx, cy) {
-  return `${cx},${cy}`;
+  return (cx + 32768) * 65536 + (cy + 32768);
 }
 
 function distanceSq(a, b) {
@@ -135,18 +137,31 @@ function generateChunk(world, cx, cy) {
 
 function getChunk(world, cx, cy) {
   const key = chunkKey(cx, cy);
-  if (world.chunkCache.has(key)) {
-    const value = world.chunkCache.get(key);
-    world.chunkCache.delete(key);
-    world.chunkCache.set(key, value);
-    return value;
+  const cached = world.chunkCache.get(key);
+  if (cached) {
+    // Recency is a counter on the chunk; the Map is only scanned when evicting (rare).
+    world.chunkUseTick += 1;
+    cached.lastUsed = world.chunkUseTick;
+    return cached;
   }
 
   const chunk = generateChunk(world, cx, cy);
+  world.chunkUseTick += 1;
+  chunk.lastUsed = world.chunkUseTick;
   world.chunkCache.set(key, chunk);
 
   while (world.chunkCache.size > world.maxCachedChunks) {
-    const oldestKey = world.chunkCache.keys().next().value;
+    let oldestKey = null;
+    let oldestUse = Infinity;
+    for (const [candidateKey, candidate] of world.chunkCache) {
+      if (candidate.lastUsed < oldestUse && candidate !== chunk) {
+        oldestUse = candidate.lastUsed;
+        oldestKey = candidateKey;
+      }
+    }
+    if (oldestKey === null) {
+      break;
+    }
     world.chunkCache.delete(oldestKey);
   }
 
@@ -169,25 +184,38 @@ function getChunksInBounds(world, minX, minY, maxX, maxY) {
   return chunks;
 }
 
+// Callers only iterate the result synchronously, so a shared scratch array is safe.
+const nearbyScratch = [];
+
 function getNearbyObstacles(world, x, y, radius) {
   const padding = radius + WORLD_CONFIG.obstaclePadding;
-  const chunks = getChunksInBounds(world, x - padding, y - padding, x + padding, y + padding);
-  const result = [];
+  const minCx = Math.floor((x - padding) / CHUNK_SIZE);
+  const maxCx = Math.floor((x + padding) / CHUNK_SIZE);
+  const minCy = Math.floor((y - padding) / CHUNK_SIZE);
+  const maxCy = Math.floor((y + padding) / CHUNK_SIZE);
 
-  for (let i = 0; i < chunks.length; i += 1) {
-    const obstacles = chunks[i].obstacles;
-    for (let j = 0; j < obstacles.length; j += 1) {
-      result.push(obstacles[j]);
-    }
+  // Common case: the query sits inside one chunk, so no copy is needed.
+  if (minCx === maxCx && minCy === maxCy) {
+    return getChunk(world, minCx, minCy).obstacles;
   }
 
-  return result;
+  nearbyScratch.length = 0;
+  for (let cy = minCy; cy <= maxCy; cy += 1) {
+    for (let cx = minCx; cx <= maxCx; cx += 1) {
+      const obstacles = getChunk(world, cx, cy).obstacles;
+      for (let j = 0; j < obstacles.length; j += 1) {
+        nearbyScratch.push(obstacles[j]);
+      }
+    }
+  }
+  return nearbyScratch;
 }
 
 export function createWorldSystem(seed) {
   return {
     seed,
     chunkCache: new Map(),
+    chunkUseTick: 0,
     maxCachedChunks: MAX_CHUNK_CACHE,
     treeStates: new Map(),
   };
@@ -235,7 +263,7 @@ export function getMovementSlowMultiplier(world, x, y, radius) {
     if (obstacle.treeState?.burnState === "burned") {
       continue;
     }
-    const distance = Math.hypot(obstacle.x - x, obstacle.y - y);
+    const distance = hypot2(obstacle.x - x, obstacle.y - y);
     if (distance <= obstacle.radius + radius) {
       slow = Math.min(slow, WORLD_CONFIG.trees.slowMultiplier);
     }
@@ -244,9 +272,14 @@ export function getMovementSlowMultiplier(world, x, y, radius) {
   return slow;
 }
 
+// Shared result object: callers read it immediately and must not retain it.
+const treeEffectsScratch = { slowMultiplier: 1, fireDamagePerSecond: 0 };
+
 export function getTreeEffectsAt(world, x, y, radius) {
   if (!world) {
-    return { slowMultiplier: 1, fireDamagePerSecond: 0 };
+    treeEffectsScratch.slowMultiplier = 1;
+    treeEffectsScratch.fireDamagePerSecond = 0;
+    return treeEffectsScratch;
   }
 
   const nearby = getNearbyObstacles(world, x, y, radius);
@@ -259,7 +292,7 @@ export function getTreeEffectsAt(world, x, y, radius) {
       continue;
     }
 
-    const distance = Math.hypot(obstacle.x - x, obstacle.y - y);
+    const distance = hypot2(obstacle.x - x, obstacle.y - y);
     if (distance > obstacle.radius + radius) {
       continue;
     }
@@ -272,7 +305,9 @@ export function getTreeEffectsAt(world, x, y, radius) {
     }
   }
 
-  return { slowMultiplier, fireDamagePerSecond };
+  treeEffectsScratch.slowMultiplier = slowMultiplier;
+  treeEffectsScratch.fireDamagePerSecond = fireDamagePerSecond;
+  return treeEffectsScratch;
 }
 
 export function igniteTreesAt(world, x, y, radius) {
@@ -290,7 +325,7 @@ export function igniteTreesAt(world, x, y, radius) {
       continue;
     }
 
-    const distance = Math.hypot(obstacle.x - x, obstacle.y - y);
+    const distance = hypot2(obstacle.x - x, obstacle.y - y);
     if (distance > obstacle.radius + radius) {
       continue;
     }
@@ -336,7 +371,7 @@ export function resolvePositionAgainstMountains(world, x, y, radius) {
 
     const dx = resolvedX - obstacle.x;
     const dy = resolvedY - obstacle.y;
-    const distance = Math.hypot(dx, dy);
+    const distance = hypot2(dx, dy);
     const minDistance = obstacle.radius + radius;
     if (distance < minDistance) {
       blocked = true;
@@ -348,6 +383,47 @@ export function resolvePositionAgainstMountains(world, x, y, radius) {
   }
 
   return { x: resolvedX, y: resolvedY, blocked };
+}
+
+// Shared result object for hot loops: read x/y immediately, do not retain.
+const resolveScratch = { x: 0, y: 0, blocked: false };
+
+export function resolvePositionAgainstMountainsShared(world, x, y, radius) {
+  if (!world) {
+    resolveScratch.x = x;
+    resolveScratch.y = y;
+    resolveScratch.blocked = false;
+    return resolveScratch;
+  }
+
+  let resolvedX = x;
+  let resolvedY = y;
+  let blocked = false;
+  const nearby = getNearbyObstacles(world, x, y, radius);
+
+  for (let i = 0; i < nearby.length; i += 1) {
+    const obstacle = nearby[i];
+    if (obstacle.type !== "mountain") {
+      continue;
+    }
+
+    const dx = resolvedX - obstacle.x;
+    const dy = resolvedY - obstacle.y;
+    const distance = hypot2(dx, dy);
+    const minDistance = obstacle.radius + radius;
+    if (distance < minDistance) {
+      blocked = true;
+      const nx = distance < 0.0001 ? 1 : dx / distance;
+      const ny = distance < 0.0001 ? 0 : dy / distance;
+      resolvedX = obstacle.x + nx * minDistance;
+      resolvedY = obstacle.y + ny * minDistance;
+    }
+  }
+
+  resolveScratch.x = resolvedX;
+  resolveScratch.y = resolvedY;
+  resolveScratch.blocked = blocked;
+  return resolveScratch;
 }
 
 export function isProjectileBlockedByMountain(world, x, y, radius) {
@@ -362,7 +438,7 @@ export function isProjectileBlockedByMountain(world, x, y, radius) {
       continue;
     }
 
-    const distance = Math.hypot(obstacle.x - x, obstacle.y - y);
+    const distance = hypot2(obstacle.x - x, obstacle.y - y);
     if (distance <= obstacle.radius + radius) {
       return true;
     }
@@ -385,7 +461,7 @@ export function getMountainCollisionNormal(world, x, y, radius) {
 
     const dx = x - obstacle.x;
     const dy = y - obstacle.y;
-    const distance = Math.hypot(dx, dy);
+    const distance = hypot2(dx, dy);
     const minDistance = obstacle.radius + radius;
     if (distance <= minDistance) {
       const nx = distance < 0.0001 ? 1 : dx / distance;

@@ -345,7 +345,18 @@ export function renderHud(ctx, view, gameState, weaponSystem, { isDebugMode = fa
     ctx.textBaseline = "middle";
     ctx.font = `12px ${FONT}`;
     ctx.fillStyle = "#ffdca7";
-    ctx.fillText(`FPS ${gameState.fps ?? 0}`, view.width - HUD.margin, HUD.margin + (gameState.player.perkPoints > 0 ? 50 : 10));
+    const fpsY = HUD.margin + (gameState.player.perkPoints > 0 ? 50 : 10);
+    ctx.fillText(`FPS ${gameState.fps ?? 0}`, view.width - HUD.margin, fpsY);
+    const perf = gameState.perf;
+    if (perf) {
+      ctx.fillText(`upd ${perf.updateAvg.toFixed(2)} / ${perf.updateMax.toFixed(1)}ms`, view.width - HUD.margin, fpsY + 16);
+      ctx.fillText(`rnd ${perf.renderAvg.toFixed(2)} / ${perf.renderMax.toFixed(1)}ms`, view.width - HUD.margin, fpsY + 32);
+      ctx.fillText(
+        `E ${gameState.enemies.length} P ${gameState.projectiles.length} FX ${gameState.effects.length} T ${gameState.floatingTexts.length}`,
+        view.width - HUD.margin,
+        fpsY + 48
+      );
+    }
   }
   ctx.restore();
   ctx.textAlign = "start";

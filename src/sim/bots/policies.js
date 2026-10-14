@@ -1,10 +1,11 @@
+import { hypot2 } from "../../core/mathUtil.js";
 // Bot policies. A bot is { name, startWeapon, reset?, decide(game, dt, rng), choosePerk(player, choices, rng) }.
 // decide() returns { movement, aim, fire, reload, weaponSlot, blink, shout, fireball }.
 
 const WEAPON_SLOT = { sword: 1, gun: 2, bow: 3, flail: 4 };
 
 function norm(x, y) {
-  const len = Math.hypot(x, y);
+  const len = hypot2(x, y);
   return len > 1e-6 ? { x: x / len, y: y / len, len } : { x: 0, y: 0, len: 0 };
 }
 
@@ -13,7 +14,7 @@ function nearest(list, px, py, getPos = (e) => e) {
   let bestD = Infinity;
   for (let i = 0; i < list.length; i += 1) {
     const p = getPos(list[i]);
-    const d = Math.hypot(p.x - px, p.y - py);
+    const d = hypot2(p.x - px, p.y - py);
     if (d < bestD) {
       bestD = d;
       best = list[i];
@@ -31,7 +32,7 @@ function threatVector(game, params) {
     if (enemy.isRespawning) continue;
     const dx = player.x - enemy.x;
     const dy = player.y - enemy.y;
-    const d = Math.max(1, Math.hypot(dx, dy) - enemy.radius - player.radius);
+    const d = Math.max(1, hypot2(dx, dy) - enemy.radius - player.radius);
     if (d > params.threatRange) continue;
     const w = (params.threatRange / d) ** 1.5 * (enemy.contactDamage ? 1 : 0.5);
     fx += (dx / (d + player.radius)) * w;
@@ -43,7 +44,7 @@ function threatVector(game, params) {
       if (p.owner !== "enemy" || !p.alive) continue;
       const rx = player.x - p.position.x;
       const ry = player.y - p.position.y;
-      const dist = Math.hypot(rx, ry);
+      const dist = hypot2(rx, ry);
       if (dist > 260) continue;
       const v = norm(p.velocity.x, p.velocity.y);
       const along = rx * v.x + ry * v.y;
@@ -63,7 +64,7 @@ function threatVector(game, params) {
       if (!pos || !r) continue;
       const dx = player.x - pos.x;
       const dy = player.y - pos.y;
-      const d = Math.hypot(dx, dy);
+      const d = hypot2(dx, dy);
       if (d > r + 50) continue;
       const w = 14;
       const n = norm(dx || 1, dy);
@@ -176,7 +177,7 @@ function createKiter(name, params) {
 
       // skills
       if (params.useSkills && target) {
-        const near = gameState.enemies.filter((e) => Math.hypot(e.x - player.x, e.y - player.y) < 160).length;
+        const near = gameState.enemies.filter((e) => hypot2(e.x - player.x, e.y - player.y) < 160).length;
         const hpRatio = player.hp / Math.max(1, player.maxHp);
         if (near >= params.shoutAt && player.shoutCooldownRemaining <= 0) out.shout = true;
         if (target.dist > 120 && player.fireballCooldownRemaining <= 0 && rng() < 0.2) out.fireball = true;

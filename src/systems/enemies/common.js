@@ -1,7 +1,8 @@
 import { recordPlayerDamage } from "../damageStats.js";
 import { GAME_CONFIG } from "../../core/constants.js";
 import { playSfx } from "../../audio/sfx.js";
-import { getMovementSlowMultiplier, resolvePositionAgainstMountains } from "../worldSystem.js";
+import { getMovementSlowMultiplier, resolvePositionAgainstMountainsShared } from "../worldSystem.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 export function spawnFloatingText(gameState, text, x, y, color, size = 24, kind = "damage") {
   gameState.floatingTexts.push({
@@ -24,13 +25,13 @@ export function moveEnemyWithTerrain(enemy, dir, speed, dt, world, moveDirection
   const finalSpeed = speed * moveDirection * treeSlow;
   const nextX = enemy.x + dir.x * finalSpeed * dt;
   const nextY = enemy.y + dir.y * finalSpeed * dt;
-  const resolved = resolvePositionAgainstMountains(world, nextX, nextY, enemy.radius);
+  const resolved = resolvePositionAgainstMountainsShared(world, nextX, nextY, enemy.radius);
   enemy.x = resolved.x;
   enemy.y = resolved.y;
 }
 
 export function normalize(dx, dy) {
-  const length = Math.hypot(dx, dy) || 1;
+  const length = hypot2(dx, dy) || 1;
   return { x: dx / length, y: dy / length };
 }
 
@@ -40,7 +41,7 @@ export function pickShooterAimPoint(originX, originY, player, playerVelocity, pr
     return { x: player.x, y: player.y };
   }
 
-  const distance = Math.hypot(player.x - originX, player.y - originY);
+  const distance = hypot2(player.x - originX, player.y - originY);
   const travelTime = distance / Math.max(1, projectileSpeed);
   return {
     x: player.x + playerVelocity.x * travelTime,

@@ -4,6 +4,7 @@ import { spawnIndicator } from "../indicatorSystem.js";
 import { damagePlayer } from "../enemies/common.js";
 import { playSfx } from "../../audio/sfx.js";
 import { addBossEmitter, addBossTimer, ensureBossState } from "./bossState.js";
+import { hypot2 } from "../../core/mathUtil.js";
 
 // Reusable bullet-hell building blocks. Every attack = telegraph (indicator) -> onTrigger spawns bullets/damage.
 // Each primitive returns how long (seconds) the attack keeps the boss "busy".
@@ -135,7 +136,7 @@ export function strikeField(gameState, boss, { points, radius = 64, firstDelay =
       color: TELEGRAPH_COLORS.danger,
       onTrigger() {
         playSfx("explosion", { volume: 0.5 });
-        if (Math.hypot(player.x - point.x, player.y - point.y) <= radius + player.radius * 0.5) {
+        if (hypot2(player.x - point.x, player.y - point.y) <= radius + player.radius * 0.5) {
           damagePlayer(gameState, player, damage);
         }
         gameState.effects.push(
@@ -215,7 +216,7 @@ export function sweepBeam(gameState, boss, { origin, startAngle, sweep = 2.1, du
           const dx = Math.cos(beam.angle);
           const dy = Math.sin(beam.angle);
           const along = Math.max(0, Math.min(length, (player.x - beam.x) * dx + (player.y - beam.y) * dy));
-          const dist = Math.hypot(player.x - (beam.x + dx * along), player.y - (beam.y + dy * along));
+          const dist = hypot2(player.x - (beam.x + dx * along), player.y - (beam.y + dy * along));
           if (dist <= width * 0.5 + player.radius * 0.6) {
             damagePlayer(gameState, player, tickDamage, { shake: 1.2, flash: 0.12 });
           }
