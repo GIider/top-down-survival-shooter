@@ -49,8 +49,13 @@ and turn faster. The value is stored in `localStorage` and applies to controller
 
 Bosses are set pieces defined in `src/systems/bosses/` (catalog, triggers, spawn modifiers, attack-pattern primitives).
 The schedule lives in `GAME_CONFIG.bosses.schedule` (`time`, `kills`, `level` or `custom` triggers). The first boss,
-**The Kaleidoscope**, appears at 3:00 and every 6:00 after being defeated. While it lives, regular spawns are reduced
-and restricted to chasers/slimes. In debug mode use **Pause → Debug → Spawn Kaleidoscope Boss**.
+**The Kaleidoscope**, appears at 1:30 and every 6:00 after being defeated. The second, **The Juggernaut** (telegraphed
+charges, ground slams, shockwaves), appears at 3:00 and may overlap with the first. While bosses live, regular spawns
+are reduced (the strictest limits of all living bosses apply).
+
+Each living boss with an `arena` definition holds the player inside a ring centered on it. The ring follows the boss,
+blink is clamped too, and it lifts when that boss dies (`src/systems/bosses/arena.js`). Multiple rings stack. In debug
+mode use **Pause → Debug → Spawn Kaleidoscope/Juggernaut Boss**.
 
 ---
 
@@ -98,6 +103,7 @@ dist/               # Generated output
 npm ci
 npm run test:regression
 npm run build
+npm run dev      # rebuild on change + serve dist/ with live reload (--port 8000 --host 0.0.0.0)
 ````
 
 **Output:**
@@ -163,3 +169,7 @@ The sim keeps running after a bot reaches the boss, so cap `--duration` when you
 Boss threat: Kaleidoscope damage values were swept at 1x/1.5x/2x/3x. At 2x (current) the boss kills ~8% of expert and
 ~20% of average runs that reach it; 3x raises that to ~18% / ~36%. Fight length (~80s median kill time at 4000 HP) is
 unaffected by damage.
+
+With the first boss at 90s and the Juggernaut at 180s (12 seeds, gun bots, 600s cap): novice median ~60s, average ~190s
+(75% reach a boss, 0.4 boss kills), expert ~270s (1.4 boss kills). Juggernaut stats (3500 HP, 45 contact damage) have
+not been swept independently yet; use `--sweep bosses.juggernaut.hpBase=...`.

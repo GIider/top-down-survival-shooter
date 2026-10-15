@@ -8,6 +8,8 @@ export function ensureBossState(gameState) {
   if (!gameState.systems.boss) {
     gameState.systems.boss = {
       activeBoss: null,
+      active: [],
+      nextUid: 1,
       queue: [],
       entries: null,
       warning: null,
@@ -23,8 +25,8 @@ export function ensureBossState(gameState) {
 }
 
 // Run `fn` after `delay` seconds (cleared automatically on phase change / boss death).
-export function addBossTimer(gameState, delay, fn) {
-  ensureBossState(gameState).timers.push({ remaining: delay, fn });
+export function addBossTimer(gameState, delay, fn, owner = null) {
+  ensureBossState(gameState).timers.push({ remaining: delay, fn, owner });
 }
 
 // Emitter: calls fire(elapsed, shotIndex) every `interval` seconds and update(dt, elapsed) every frame
@@ -38,6 +40,9 @@ export function tickBossScripts(gameState, dt) {
 
   for (let i = state.timers.length - 1; i >= 0; i -= 1) {
     const timer = state.timers[i];
+    if (!timer) {
+      continue;
+    }
     timer.remaining -= dt;
     if (timer.remaining <= 0) {
       state.timers.splice(i, 1);
@@ -74,20 +79,22 @@ export function tickBossScripts(gameState, dt) {
   }
 }
 
-// Drops every pending boss script, telegraph and (optionally) bullet. Bullets become small sparkles.
-export function clearBossAttacks(gameState, { bullets = true } = {}) {
+// Drops pending boss scripts, telegraphs and (optionally) bullets. Bullets become small sparkles.
+// With `owner` (a boss uid) only that boss's attacks are removed; without it everything goes.
+export function clearBossAttacks(gameState, { bullets = true, owner = null } = {}) {
   const state = ensureBossState(gameState);
-  state.timers.length = 0;
-  state.emitters.length = 0;
-  state.beams.length = 0;
-  gameState.indicators = gameState.indicators.filter((indicator) => indicator.source !== "boss");
+  const mine = (item) => owner === null || item.owner === owner;
+  state.timers = state.timers.filter((item) => !mine(item));
+  state.emitters = state.emitters.filter((item) => !mine(item));
+  state.beams = state.beams.filter((item) => !mine(item));
+  gameState.indicators = gameState.indicators.filter((indicator) => indicator.source !== "boss" || (owner !== null && indicator.owner !== owner));
 
   if (!bullets) {
     return;
   }
   for (let i = gameState.projectiles.length - 1; i >= 0; i -= 1) {
     const projectile = gameState.projectiles[i];
-    if (projectile.source !== "boss") {
+    if (projectile.source !== "boss" || (owner !== null && projectile.bossUid !== owner)) {
       continue;
     }
     gameState.effects.push({

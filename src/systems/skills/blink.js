@@ -5,6 +5,7 @@ import { getMeleeConfig } from "../weapons/index.js";
 import { createDamageContext, PERK_HOOKS } from "../perks/contracts.js";
 import { playSfx } from "../../audio/sfx.js";
 import { hypot2 } from "../../core/mathUtil.js";
+import { constrainToBossArenas } from "../bosses/arena.js";
 
 const BLINK_CONFIG = GAME_CONFIG.skills.blink;
 const MELEE_CONFIG = getMeleeConfig();
@@ -175,8 +176,9 @@ export function tryBlink(services, worldPointer) {
   const targetX = player.x + blinkDirX * player.blinkDistance;
   const targetY = player.y + blinkDirY * player.blinkDistance;
   const resolved = resolvePositionAgainstMountains(world, targetX, targetY, player.radius);
-  player.x = resolved.x;
-  player.y = resolved.y;
+  const constrained = constrainToBossArenas(gameState, resolved.x, resolved.y, player.radius);
+  player.x = constrained.x;
+  player.y = constrained.y;
   playSfx("blink");
   if (player.blinkMaxCharges <= 1) {
     player.blinkCharges = 0;

@@ -279,11 +279,14 @@ function drawBossUi(ctx, gameState, view) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const boss = state.activeBoss;
-  if (boss && boss.maxHp > 0) {
+  const bosses = state.active || [];
+  bosses.forEach((boss, index) => {
+    if (!(boss.maxHp > 0)) {
+      return;
+    }
     const width = Math.min(560, view.width - 320);
     const x = cx - width * 0.5;
-    const y = HUD.margin + 56;
+    const y = HUD.margin + 56 + index * 40;
     const ratio = clamp01(boss.hp / boss.maxHp);
     ctx.font = `bold 14px ${FONT}`;
     ctx.fillStyle = boss.invulnerableTimer > 0 ? "#bff0ff" : "#ffd6f7";
@@ -299,7 +302,7 @@ function drawBossUi(ctx, gameState, view) {
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.fillRect(x + width * marker - 1, y - 4, 2, 20);
     });
-  }
+  });
 
   if (state.warning) {
     const pulse = 0.5 + 0.5 * Math.sin(gameState.time * 10);

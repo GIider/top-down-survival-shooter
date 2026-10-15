@@ -69,6 +69,7 @@ export const DEBUG_MENU_ITEMS = [
   { id: "mortar", label: "Spawn Mortar", kind: "enemy" },
   { id: "flyingBomber", label: "Spawn Flying Bomber", kind: "enemy" },
   { id: "boss_kaleidoscope", label: "Spawn Kaleidoscope Boss", kind: "boss" },
+  { id: "boss_juggernaut", label: "Spawn Juggernaut Boss", kind: "boss" },
   { id: "levelUp", label: "Level Up Player", kind: "action" },
   { id: "pickups", label: "Spawn Pickups", kind: "action" },
 ];
@@ -108,7 +109,7 @@ export function createDebugSystem(services) {
       } else if (id === "pickups") {
         spawnDebugPickups(services);
       } else if (item.kind === "boss") {
-        spawnBoss(services.gameState, id.replace("boss_", ""));
+        spawnBoss(services.gameState, id.replace("boss_", ""), -1, { allowDuplicate: true });
       } else if (item.kind === "enemy") {
         spawnDebugEnemy(services, id);
       }

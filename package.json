@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
     "test:regression:perkEngine": "node tests/regression/perkEngine.regression.mjs",
     "test:regression:bomber": "node tests/regression/bomber.regression.mjs",
     "test:regression:audio": "node tests/regression/audio.regression.mjs",

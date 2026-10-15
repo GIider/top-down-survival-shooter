@@ -69,8 +69,8 @@ function enterPhase(gameState, boss, def, index, withTransition) {
   boss.phaseIndex = index;
   boss.color = phase.tint || boss.color;
   boss.scratch.cooldown = undefined;
-  state.modifier = phase.spawnModifier || def.spawnModifier || null;
-  clearBossAttacks(gameState);
+  boss.modifier = phase.spawnModifier || def.spawnModifier || null;
+  clearBossAttacks(gameState, { owner: boss.uid });
 
   if (withTransition) {
     boss.invulnerableTimer = def.transitionDuration || 0;
@@ -90,10 +90,27 @@ export function getActiveBoss(gameState) {
   return gameState.systems?.boss?.activeBoss || null;
 }
 
-export function spawnBoss(gameState, id, entryIndex = -1) {
+export function getActiveBosses(gameState) {
+  return gameState.systems?.boss?.active || [];
+}
+
+// activeBoss stays as "the first living boss" for HUD/sim code that only cares about one.
+function syncActive(state) {
+  state.activeBoss = state.active[0] || null;
+}
+
+function removeActive(state, boss) {
+  const index = state.active.indexOf(boss);
+  if (index >= 0) {
+    state.active.splice(index, 1);
+  }
+  syncActive(state);
+}
+
+export function spawnBoss(gameState, id, entryIndex = -1, { allowDuplicate = false } = {}) {
   const def = getBossDef(id);
   const state = ensureBossState(gameState);
-  if (!def || state.activeBoss) {
+  if (!def || (!allowDuplicate && state.active.some((boss) => boss.bossId === id))) {
     return null;
   }
 
@@ -107,6 +124,9 @@ export function spawnBoss(gameState, id, entryIndex = -1) {
     name: def.name,
     phaseMarkers: def.phases.slice(1).map((phase) => phase.hpBelow),
     entryIndex,
+    arena: def.arena || null,
+    uid: state.nextUid++,
+    modifier: null,
     skipRecycle: true,
     immuneToCC: true,
     isRespawning: false,
@@ -125,12 +145,39 @@ export function spawnBoss(gameState, id, entryIndex = -1) {
   }
 
   gameState.enemies.push(boss);
-  state.activeBoss = boss;
+  state.active.push(boss);
+  syncActive(state);
   state.spawnCounts[id] = (state.spawnCounts[id] || 0) + 1;
   enterPhase(gameState, boss, def, 0, false);
   setBanner(state, def.name.toUpperCase(), "has awoken", 2.5, "spawn");
   playSfx("explosion", { volume: 0.8 });
   return boss;
+}
+
+function combineModifiers(modifiers) {
+  if (modifiers.length === 0) {
+    return null;
+  }
+  if (modifiers.length === 1) {
+    return modifiers[0];
+  }
+  const combined = { spawnRateMultiplier: 1, maxEnemiesMultiplier: 1, allowedTypes: null, blockedTypes: [] };
+  const unionAllowed = new Set();
+  modifiers.forEach((modifier) => {
+    combined.spawnRateMultiplier = Math.min(combined.spawnRateMultiplier, modifier.spawnRateMultiplier ?? 1);
+    combined.maxEnemiesMultiplier = Math.min(combined.maxEnemiesMultiplier, modifier.maxEnemiesMultiplier ?? 1);
+    if (modifier.allowedTypes) {
+      modifier.allowedTypes.forEach((type) => unionAllowed.add(type));
+      combined.allowedTypes = combined.allowedTypes
+        ? combined.allowedTypes.filter((type) => modifier.allowedTypes.includes(type))
+        : [...modifier.allowedTypes];
+    }
+    (modifier.blockedTypes || []).forEach((type) => combined.blockedTypes.push(type));
+  });
+  if (combined.allowedTypes && combined.allowedTypes.length === 0) {
+    combined.allowedTypes = [...unionAllowed];
+  }
+  return combined;
 }
 
 // Regular-spawner hook: returns the active modifier (or a hold during the warning) or null.
@@ -139,8 +186,8 @@ export function getSpawnModifier(gameState) {
   if (!state) {
     return null;
   }
-  if (state.activeBoss) {
-    return state.modifier;
+  if (state.active.length > 0) {
+    return combineModifiers(state.active.map((boss) => boss.modifier).filter(Boolean));
   }
   if (state.warning) {
     return { spawnRateMultiplier: 0 };
@@ -160,11 +207,13 @@ export function updateBossDirector(gameState, dt, { enabled = true } = {}) {
 
   tickBossScripts(gameState, dt);
 
-  if (state.activeBoss && !gameState.enemies.includes(state.activeBoss)) {
-    // Removed by something other than killEnemy (e.g. debug wipe).
-    state.activeBoss = null;
-    state.modifier = null;
-    clearBossAttacks(gameState);
+  for (let i = state.active.length - 1; i >= 0; i -= 1) {
+    const boss = state.active[i];
+    if (!gameState.enemies.includes(boss)) {
+      // Removed by something other than killEnemy (e.g. debug wipe).
+      removeActive(state, boss);
+      clearBossAttacks(gameState, { owner: boss.uid });
+    }
   }
 
   if (enabled) {
@@ -191,11 +240,14 @@ export function updateBossDirector(gameState, dt, { enabled = true } = {}) {
       }
       spawnBoss(gameState, id, entryIndex);
     }
-  } else if (!state.activeBoss && state.queue.length > 0) {
+  } else if (state.queue.length > 0) {
     const entryIndex = state.queue.shift();
     const config = BOSS_CONFIG.schedule[entryIndex];
     const def = getBossDef(config.boss);
-    if (def) {
+    if (def && state.active.some((boss) => boss.bossId === def.id)) {
+      // Same boss still alive: retry once it is gone.
+      state.queue.push(entryIndex);
+    } else if (def) {
       const duration = def.warningDuration ?? BOSS_CONFIG.warningDuration;
       state.warning = { entryIndex, id: def.id, name: def.name, timer: duration, duration };
       playSfx("nuke", { volume: 0.5 });
@@ -229,9 +281,8 @@ export function updateBoss(gameState, boss, player, world, dt, playerVelocity) {
 export function onBossKilled(gameState, boss, player) {
   const state = ensureBossState(gameState);
   const def = getBossDef(boss.bossId);
-  clearBossAttacks(gameState);
-  state.activeBoss = null;
-  state.modifier = null;
+  clearBossAttacks(gameState, { owner: boss.uid });
+  removeActive(state, boss);
   gameState.runStats.bossKills = (gameState.runStats.bossKills || 0) + 1;
 
   const entries = getEntries(gameState, state);

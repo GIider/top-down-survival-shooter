@@ -409,7 +409,11 @@ export const GAME_CONFIG = {
     defeatBannerDuration: 3.5,
     // trigger types: time (seconds), kills (run kills), level (player level), custom (test(gameState) => bool).
     // `repeat` re-arms the trigger after each defeat; `maxSpawns` caps spawns per run.
-    schedule: [{ boss: "kaleidoscope", trigger: { type: "time", at: 180, repeat: 360 }, maxSpawns: 3 }],
+    // Bosses are independent: a second one can arrive while the first is alive. Each holds the player in an arena ring.
+    schedule: [
+      { boss: "kaleidoscope", trigger: { type: "time", at: 90, repeat: 360 }, maxSpawns: 3 },
+      { boss: "juggernaut", trigger: { type: "time", at: 180, repeat: 360 }, maxSpawns: 3 },
+    ],
     nukeMaxHpFraction: 0.05,
     kaleidoscope: {
       hpBase: 4000,
@@ -427,6 +431,24 @@ export const GAME_CONFIG = {
       bulletColor: "#ff6fe9",
       bulletAltColor: "#6ff3ff",
       spawnModifier: { spawnRateMultiplier: 0.3, maxEnemiesMultiplier: 0.5, allowedTypes: ["chaser", "slime"], clearExisting: "fade" },
+      arena: { radius: 480, lockIn: 1.5 },
+    },
+    juggernaut: {
+      hpBase: 3500,
+      hpDifficultyScale: 100,
+      radius: 58,
+      color: "#ff9a5a",
+      speed: 95,
+      contactDamage: 45,
+      dashContactMultiplier: 1.5,
+      xp: 450,
+      transitionDuration: 2,
+      bulletDamage: 13,
+      strikeDamage: 34,
+      bulletColor: "#ff7a3a",
+      bulletAltColor: "#ffd27a",
+      spawnModifier: { spawnRateMultiplier: 0.4, maxEnemiesMultiplier: 0.6, allowedTypes: ["chaser", "slime", "bomber"], clearExisting: "none" },
+      arena: { radius: 420, lockIn: 1.5 },
     },
   },
   enemies: {

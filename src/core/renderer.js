@@ -1,4 +1,5 @@
 import { CANVAS } from "./constants.js";
+import { getBossArenas } from "../systems/bosses/arena.js";
 import { renderControlsLegendPanel, renderPickupLegendPanel, renderTitleHistoryPanel } from "./render/panels.js";
 import { renderHud } from "./render/hud.js";
 import { renderPauseOverlay, renderPerkLibraryOverlay, renderTitleScreen } from "./render/titleOverlays.js";
@@ -259,6 +260,26 @@ export function createRenderer(canvasElement, gameState, view, { debugSystem = n
         ctx.arc(indicator.position.x, indicator.position.y, indicator.size.radius, 0, Math.PI * 2);
         ctx.stroke();
       }
+    });
+
+    getBossArenas(gameState).forEach((ring) => {
+      const pulse = 0.5 + 0.5 * Math.sin(gameState.time * 3);
+      ctx.save();
+      ctx.strokeStyle = ring.boss.color || "#c58cff";
+      ctx.globalAlpha = 0.45 + pulse * 0.25;
+      ctx.lineWidth = 6;
+      ctx.setLineDash([26, 18]);
+      ctx.lineDashOffset = -gameState.time * 40;
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.12;
+      ctx.lineWidth = 36;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.radius + 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     });
 
     const bossBeams = gameState.systems?.boss?.beams;

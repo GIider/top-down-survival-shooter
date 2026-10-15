@@ -25,7 +25,7 @@ const ATTACKS = {
     const first = lanceBurst(gameState, boss, { origin, angles: [0, 1, 2, 3].map((k) => base + k * QUARTER), telegraph: wait });
     addBossTimer(gameState, wait * 0.6, () => {
       lanceBurst(gameState, boss, { origin, angles: [0, 1, 2, 3].map((k) => base + EIGHTH + k * QUARTER), telegraph: wait });
-    });
+    }, boss.uid);
     return wait * 0.6 + first;
   },
 
@@ -130,6 +130,7 @@ export const kaleidoscope = {
   warningDuration: GAME_CONFIG.bosses.warningDuration,
   transitionDuration: CONFIG.transitionDuration,
   spawnModifier: CONFIG.spawnModifier,
+  arena: CONFIG.arena,
 
   create(gameState, difficulty, x, y) {
     const hp = CONFIG.hpBase + difficulty * CONFIG.hpDifficultyScale;

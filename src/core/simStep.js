@@ -7,6 +7,7 @@ import { updateIndicators } from "../systems/indicatorSystem.js";
 import { updatePickups } from "../systems/pickups/index.js";
 import { applyPendingLevelUps, updatePlayerRuntime } from "../systems/playerRuntimeSystem.js";
 import { updateProjectiles } from "../systems/projectileSystem.js";
+import { constrainToBossArenas } from "../systems/bosses/arena.js";
 import {
   tryBlink,
   tryFireball,
@@ -68,8 +69,9 @@ export function stepSim(ctx, dt, movement, getActions) {
     terrainMultiplier: treeSlow,
     resolveCollision(p) {
       const resolved = resolvePositionAgainstMountainsShared(world, p.x, p.y, p.radius);
-      p.x = resolved.x;
-      p.y = resolved.y;
+      const constrained = constrainToBossArenas(gameState, resolved.x, resolved.y, p.radius);
+      p.x = constrained.x;
+      p.y = constrained.y;
     },
   });
 

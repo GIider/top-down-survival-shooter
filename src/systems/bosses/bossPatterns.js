@@ -38,6 +38,7 @@ export function fireBossBullet(gameState, boss, x, y, angle, speed, { radius = 7
     radius,
     modifiers: [],
     source: "boss",
+    bossUid: boss.uid,
     ignoreTerrain: true,
   });
   gameState.projectiles.push(projectile);
@@ -76,12 +77,14 @@ export function lanceBurst(gameState, boss, { origin, angles, width = 48, length
       width,
       duration: telegraph,
       source: "boss",
+      owner: boss.uid,
       color: TELEGRAPH_COLORS.danger,
       onTrigger() {
         if (index === 0) {
           playSfx("enemyShoot", { volume: 0.7 });
         }
         addBossEmitter(gameState, {
+          owner: boss.uid,
           duration: streamDuration,
           interval,
           fire() {
@@ -107,6 +110,7 @@ export function gapRing(gameState, boss, { origin, gapCenter, gapWidth = 0.7, co
       size: { radius: 460 },
       duration: delay,
       source: "boss",
+      owner: boss.uid,
       color: TELEGRAPH_COLORS.gap,
       onTrigger() {
         playSfx("enemyShoot", { volume: 0.6 });
@@ -133,6 +137,7 @@ export function strikeField(gameState, boss, { points, radius = 64, firstDelay =
       size: { radius },
       duration: firstDelay + index * step,
       source: "boss",
+      owner: boss.uid,
       color: TELEGRAPH_COLORS.danger,
       onTrigger() {
         playSfx("explosion", { volume: 0.5 });
@@ -161,12 +166,14 @@ export function spiralStorm(gameState, boss, { origin, arms = 3, duration = 4, i
       size: { radius: 0 },
       duration: windup,
       source: "boss",
+      owner: boss.uid,
       color: TELEGRAPH_COLORS.ray,
     });
   }
 
   addBossTimer(gameState, windup, () => {
     addBossEmitter(gameState, {
+      owner: boss.uid,
       duration,
       interval,
       fire(elapsed) {
@@ -182,7 +189,7 @@ export function spiralStorm(gameState, boss, { origin, arms = 3, duration = 4, i
         }
       },
     });
-  });
+  }, boss.uid);
   return windup + duration;
 }
 
@@ -198,13 +205,15 @@ export function sweepBeam(gameState, boss, { origin, startAngle, sweep = 2.1, du
     size: { radius: length },
     duration: windup,
     source: "boss",
+    owner: boss.uid,
     color: TELEGRAPH_COLORS.danger,
     onTrigger() {
       playSfx("explosion", { volume: 0.4 });
-      const beam = { x: origin.x, y: origin.y, angle: startAngle, length, width };
+      const beam = { x: origin.x, y: origin.y, angle: startAngle, length, width, owner: boss.uid };
       state.beams.push(beam);
       let tickTimer = 0;
       addBossEmitter(gameState, {
+        owner: boss.uid,
         duration,
         update(dt, elapsed) {
           beam.angle = startAngle + sweep * (elapsed / duration);
@@ -247,6 +256,7 @@ export function closingCage(gameState, boss, { center, radius = 320, count = 56,
     size: { radius, thickness: 10 },
     duration: telegraph,
     source: "boss",
+    owner: boss.uid,
     color: TELEGRAPH_COLORS.danger,
     onTrigger() {
       playSfx("enemyShoot", { volume: 0.7 });
@@ -274,8 +284,68 @@ export function closingCage(gameState, boss, { center, radius = 320, count = 56,
       size: { radius },
       duration: telegraph,
       source: "boss",
+      owner: boss.uid,
       color: TELEGRAPH_COLORS.gap,
     });
   });
   return telegraph + radius / speed * 0.6;
+}
+
+function bulletRing(gameState, boss, x, y, count, speed, offset = 0) {
+  for (let i = 0; i < count; i += 1) {
+    fireBossBullet(gameState, boss, x, y, offset + (TAU * i) / count, speed, {
+      radius: 7,
+      lifetime: 2.6,
+      color: i % 2 === 0 ? boss.bulletColor : boss.bulletAltColor,
+    });
+  }
+}
+
+// Telegraphed lane, then the boss barrels down it (movement is driven by boss.scratch.dash, see juggernaut.js).
+// Ends with a shockwave ring. Contact damage is boosted while dashing.
+export function chargeDash(gameState, boss, { angle, telegraph = 0.9, distance = 620, speed = 980, width = 96, shockwaveCount = 16 }) {
+  const origin = { x: boss.x, y: boss.y };
+  const duration = distance / speed;
+  boss.scratch.rootTimer = telegraph;
+  spawnIndicator(gameState.indicators, {
+    type: "rect",
+    position: { x: origin.x, y: origin.y },
+    angle,
+    length: distance,
+    size: { radius: 0 },
+    width,
+    duration: telegraph,
+    source: "boss",
+    owner: boss.uid,
+    color: TELEGRAPH_COLORS.danger,
+    onTrigger() {
+      if (!gameState.enemies.includes(boss)) {
+        return;
+      }
+      playSfx("enemyShoot", { volume: 0.8 });
+      boss.scratch.dash = {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        speed,
+        remaining: duration,
+        onEnd() {
+          playSfx("explosion", { volume: 0.6 });
+          bulletRing(gameState, boss, boss.x, boss.y, shockwaveCount, 260, Math.random() * TAU);
+          gameState.effects.push({ x: boss.x, y: boss.y, radius: boss.radius, elapsed: 0, duration: 0.5, growth: 140, color: "255, 150, 120" });
+          gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 4);
+        },
+      };
+    },
+  });
+  return telegraph + duration + 0.2;
+}
+
+// Big circle on the player's position; on impact it damages inside and throws a ring of bullets outward.
+export function groundSlam(gameState, boss, { center, radius = 150, telegraph = 1.0, count = 20, speed = 230 }) {
+  strikeField(gameState, boss, { points: [center], radius, firstDelay: telegraph, step: 0 });
+  addBossTimer(gameState, telegraph, () => {
+    bulletRing(gameState, boss, center.x, center.y, count, speed, Math.random() * TAU);
+    gameState.screenFx.shake = Math.min(14, gameState.screenFx.shake + 3);
+  }, boss.uid);
+  return telegraph + 0.4;
 }
